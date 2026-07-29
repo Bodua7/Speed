@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>SpeedAlert Pro - Cảnh Báo Tốc Độ</title>
+  
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      height: 100dvh;
+      overflow: hidden;
+      background-color: #0f172a;
+      color: #f8fafc;
+    }
+
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .dashboard-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-evenly;
+      width: 100%;
+      max-width: 380px;
+      height: 100%;
+      padding: 12px 16px;
+    }
+
+    /* Biển báo giới hạn tốc độ */
+    .speed-limit-sign {
+      width: 55px;
+      height: 55px;
+      border-radius: 50%;
+      background-color: #ffffff;
+      border: 5px solid #ef4444;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+      flex-shrink: 0;
+    }
+
+    .sign-title {
+      font-size: 7px;
+      font-weight: 800;
+      color: #1e293b;
+    }
+
+    #speedLimitValue {
+      font-size: 18px;
+      font-weight: 900;
+      color: #0f172a;
+      line-height: 1;
+    }
+
+    /* Đồng hồ Canvas */
+    .gauge-wrapper {
+      position: relative;
+      width: 220px;
+      height: 220px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    /* Bảng cài đặt luật đường bộ */
+    .settings-panel {
+      width: 100%;
+      background-color: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .select-group {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: #cbd5e1;
+    }
+
+    .select-group select {
+      background-color: #0f172a;
+      color: #38bdf8;
+      border: 1px solid #475569;
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      outline: none;
+    }
+
+    /* Hộp trạng thái */
+    .status-box {
+      background-color: #1e293b;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #38bdf8;
+      text-align: center;
+      width: 100%;
+      border: 1px solid #334155;
+      flex-shrink: 0;
+    }
+
+    .status-box.overspeed {
+      background-color: #7f1d1d;
+      color: #fca5a5;
+      border-color: #ef4444;
+      animation: pulse 1s infinite alternate;
+    }
+
+    @keyframes pulse {
+      from { opacity: 0.8; }
+      to { opacity: 1; transform: scale(1.02); }
+    }
+
+    /* Nút bấm điều khiển */
+    .controls { 
+      width: 100%; 
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary { background-color: #22c55e; color: #052e16; }
+    .btn-pip { background-color: #0284c7; color: #ffffff; }
+    .btn-danger { background-color: #ef4444; color: #450a0a; }
+
+    /* Video ẩn dùng để tạo luồng Popup PiP */
+    #hiddenVideo {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="dashboard-container">
+    <!-- Biển báo giới hạn -->
+    <div class="speed-limit-sign">
+      <span class="sign-title">GIỚI HẠN</span>
+      <span id="speedLimitValue">--</span>
+    </div>
+
+    <!-- Đồng hồ tốc độ Canvas -->
+    <div class="gauge-wrapper">
+      <canvas id="speedGauge" width="220" height="220"></canvas>
+    </div>
+
+    <!-- Video ẩn cho Picture-in-Picture -->
+    <video id="hiddenVideo" autoplay playsinline muted></video>
+
+    <!-- Tùy chọn Luật Giao Thông Việt Nam -->
+    <div class="settings-panel">
+      <div class="select-group">
+        <label for="vehicleSelect">🚗 Phương tiện:</label>
+        <select id="vehicleSelect">
+          <option value="car">Ô tô con (&le; 9 chỗ)</option>
+          <option value="motorbike">Xe máy (Mô tô)</option>
+        </select>
+      </div>
+
+      <div class="select-group">
+        <label for="zoneSelect">📍 Khu vực / Đường:</label>
+        <select id="zoneSelect">
+          <option value="urban_dual">Khu dân cư - Đường đôi / 2+ làn</option>
+          <option value="urban_single">Khu dân cư - Đường 2 chiều / 1 làn</option>
+          <option value="rural_dual">Ngoài dân cư - Đường đôi / 2+ làn</option>
+          <option value="rural_single">Ngoài dân cư - Đường 2 chiều / 1 làn</option>
+          <option value="expressway">Đường cao tốc</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Hộp trạng thái -->
+    <div id="statusText" class="status-box">Sẵn sàng khởi động</div>
+
+    <!-- Nút điều khiển -->
+    <div class="controls">
+      <button id="startBtn" class="btn btn-primary">🚗 BẮT ĐẦU LÁI XE</button>
+      <button id="pipBtn" class="btn btn-pip" style="display: none;">📌 BẬT POPUP NỔI (PiP)</button>
+      <button id="stopBtn" class="btn btn-danger" style="display: none;">🛑 DỪNG</button>
+    </div>
+  </div>
+
+  <script>
+    // --- BẢNG QUY ĐỊNH TỐC ĐỘ GIỚI HẠN (Thông tư 31/2019/TT-BGTVT) ---
+    const SPEED_LIMIT_RULES = {
+      car: {
+        urban_dual: 60,
+        urban_single: 50,
+        rural_dual: 90,
+        rural_single: 80,
+        expressway: 120
+      },
+      motorbike: {
+        urban_dual: 60,
+        urban_single: 50,
+        rural_dual: 70,
+        rural_single: 60,
+        expressway: 0 // Cấm xe máy
+      }
+    };
+
+    // --- BIẾN TRẠNG THÁI ---
+    const MAX_SPEED_DISPLAY = 120;
+    let SPEED_LIMIT = 60;
+    let watchId = null;
+    let wakeLock = null;
+    let audioCtx = null;
+    let currentSpeed = 0;
+
+    // --- PHẦN TỬ DOM ---
+    const canvas = document.getElementById('speedGauge');
+    const ctx = canvas.getContext('2d');
+    const hiddenVideo = document.getElementById('hiddenVideo');
+    const speedLimitEl = document.getElementById('speedLimitValue');
+    const statusTextEl = document.getElementById('statusText');
+    const startBtn = document.getElementById('startBtn');
+    const pipBtn = document.getElementById('pipBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const vehicleSelect = document.getElementById('vehicleSelect');
+    const zoneSelect = document.getElementById('zoneSelect');
+
+    // Cập nhật tốc độ giới hạn
+    function updateSpeedLimitFromRules() {
+      const vehicle = vehicleSelect.value;
+      const zone = zoneSelect.value;
+      const limit = SPEED_LIMIT_RULES[vehicle][zone];
+
+      if (limit === 0) {
+        SPEED_LIMIT = 0;
+        speedLimitEl.innerText = "CẤM";
+        statusTextEl.innerText = "🚫 Xe máy cấm đi vào đường cao tốc!";
+        statusTextEl.classList.add('overspeed');
+      } else {
+        SPEED_LIMIT = limit;
+        speedLimitEl.innerText = SPEED_LIMIT;
+        if (watchId === null) {
+          statusTextEl.innerText = `Giới hạn áp dụng: ${SPEED_LIMIT} km/h`;
+          statusTextEl.classList.remove('overspeed');
+        }
+      }
+
+      drawGauge(currentSpeed);
+    }
+
+    vehicleSelect.addEventListener('change', updateSpeedLimitFromRules);
+    zoneSelect.addEventListener('change', updateSpeedLimitFromRules);
+
+    // --- 1. VẼ ĐỒNG HỒ CANVAS ---
+    function drawGauge(speed) {
+      const width = canvas.width;
+      const height = canvas.height;
+      const cx = width / 2;
+      const cy = height / 2;
+      const radius = 85;
+
+      // Xóa nền canvas
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, width, height);
+
+      const startAngle = 0.75 * Math.PI;
+      const endAngle = 2.25 * Math.PI;
+
+      // 1.1. Vẽ nền cung xám
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, startAngle, endAngle);
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 14;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+
+      // 1.2. Vẽ cung tốc độ hiện tại
+      const progress = Math.min(Math.max(speed, 0), MAX_SPEED_DISPLAY) / MAX_SPEED_DISPLAY;
+      const currentAngle = startAngle + progress * (endAngle - startAngle);
+
+      if (progress > 0) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, startAngle, currentAngle);
+
+        if (SPEED_LIMIT > 0 && speed > SPEED_LIMIT) {
+          ctx.strokeStyle = '#ef4444'; // Màu đỏ khi quá tốc độ
+        } else {
+          ctx.strokeStyle = '#38bdf8'; // Màu xanh khi an toàn
+        }
+
+        ctx.lineWidth = 14;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+      }
+
+      // 1.3. Vẽ số tốc độ lớn
+      ctx.fillStyle = (SPEED_LIMIT > 0 && speed > SPEED_LIMIT) ? '#ef4444' : '#ffffff';
+      ctx.font = '900 52px system-ui, -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(speed.toString(), cx, cy - 10);
+
+      // 1.4. Vẽ chữ km/h rõ nét
+      ctx.fillStyle = '#cbd5e1'; // Màu ghi sáng rõ ràng
+      ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
+      ctx.fillText('km/h', cx, cy + 32);
+    }
+
+    // --- 2. XỬ LÝ POPUP PICTURE-IN-PICTURE (PiP) ---
+    async function togglePiP() {
+      try {
+        if (document.pictureInPictureElement) {
+          await document.exitPictureInPicture();
+        } else {
+          if (!hiddenVideo.srcObject) {
+            // Chuyển Canvas thành luồng Video 30fps
+            const stream = canvas.captureStream(30);
+            hiddenVideo.srcObject = stream;
+            await hiddenVideo.play();
+          }
+          await hiddenVideo.requestPictureInPicture();
+        }
+      } catch (err) {
+        alert("Thiết bị hoặc trình duyệt chưa hỗ trợ Popup PiP!\n" + err.message);
+      }
+    }
+
+    pipBtn.addEventListener('click', togglePiP);
+
+    // --- 3. ÂM THANH CẢNH BÁO (BEEP) ---
+    function playAlertBeep() {
+      try {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+        
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.3);
+      } catch (e) {
+        console.error("Lỗi phát âm thanh:", e);
+      }
+    }
+
+    // --- 4. GIỮ MÀN HÌNH LUÔN SÁNG ---
+    async function requestWakeLock() {
+      if ('wakeLock' in navigator) {
+        try {
+          wakeLock = await navigator.wakeLock.request('screen');
+        } catch (err) {
+          console.log('Wake Lock Error:', err.message);
+        }
+      }
+    }
+
+    function releaseWakeLock() {
+      if (wakeLock !== null) {
+        wakeLock.release();
+        wakeLock = null;
+      }
+    }
+
+    // --- 5. THEO DÕI VỊ TRÍ GPS ---
+    function startTracking() {
+      if (!navigator.geolocation) {
+        statusTextEl.innerText = "❌ Thiết bị không hỗ trợ GPS";
+        return;
+      }
+
+      if (SPEED_LIMIT === 0) {
+        alert("Xe máy không được phép lưu thông trên đường cao tốc!");
+        return;
+      }
+
+      requestWakeLock();
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+
+      statusTextEl.innerText = "📡 Đang tìm tín hiệu GPS...";
+      
+      watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          let rawSpeed = position.coords.speed; 
+          
+          if (rawSpeed === null || rawSpeed < 0) {
+            currentSpeed = 0;
+          } else {
+            currentSpeed = Math.round(rawSpeed * 3.6);
+          }
+
+          drawGauge(currentSpeed);
+
+          if (SPEED_LIMIT > 0 && currentSpeed > SPEED_LIMIT) {
+            statusTextEl.innerText = `⚠️ QUÁ TỐC ĐỘ: ${currentSpeed}/${SPEED_LIMIT} km/h!`;
+            statusTextEl.classList.add('overspeed');
+            playAlertBeep();
+          } else {
+            statusTextEl.innerText = "🟢 Tốc độ an toàn";
+            statusTextEl.classList.remove('overspeed');
+          }
+        },
+        (error) => {
+          console.error(error);
+          switch(error.code) {
+            case error.PERMISSION_DENIED:
+              statusTextEl.innerText = "❌ Chưa cấp quyền truy cập GPS!";
+              break;
+            case error.POSITION_UNAVAILABLE:
+              statusTextEl.innerText = "❌ Không có tín hiệu vị trí GPS!";
+              break;
+            case error.TIMEOUT:
+              statusTextEl.innerText = "⏳ Hết thời gian chờ tín hiệu GPS!";
+              break;
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 5000
+        }
+      );
+
+      startBtn.style.display = 'none';
+      pipBtn.style.display = 'block';
+      stopBtn.style.display = 'block';
+    }
+
+    function stopTracking() {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
+
+      if (document.pictureInPictureElement) {
+        document.exitPictureInPicture();
+      }
+
+      releaseWakeLock();
+
+      currentSpeed = 0;
+      drawGauge(0);
+      
+      updateSpeedLimitFromRules();
+
+      startBtn.style.display = 'block';
+      pipBtn.style.display = 'none';
+      stopBtn.style.display = 'none';
+    }
+
+    // Khởi tạo trạng thái ban đầu
+    updateSpeedLimitFromRules();
+    startBtn.addEventListener('click', startTracking);
+    stopBtn.addEventListener('click', stopTracking);
+  </script>
+</body>
+</html>
