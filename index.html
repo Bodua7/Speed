@@ -165,9 +165,13 @@
     .btn-pip { background-color: #0284c7; color: #ffffff; }
     .btn-danger { background-color: #ef4444; color: #450a0a; }
 
-    /* Video ẩn dùng để tạo luồng Popup PiP */
+    /* Element video phục vụ Picture-in-Picture */
     #hiddenVideo {
-      display: none;
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0.01;
+      pointer-events: none;
     }
   </style>
 </head>
@@ -185,7 +189,7 @@
       <canvas id="speedGauge" width="220" height="220"></canvas>
     </div>
 
-    <!-- Video ẩn cho Picture-in-Picture -->
+    <!-- Element video dùng cho Picture-in-Picture -->
     <video id="hiddenVideo" autoplay playsinline muted></video>
 
     <!-- Tùy chọn Luật Giao Thông Việt Nam -->
@@ -247,6 +251,7 @@
     let wakeLock = null;
     let audioCtx = null;
     let currentSpeed = 0;
+    let animationFrameId = null;
 
     // --- PHẦN TỬ DOM ---
     const canvas = document.getElementById('speedGauge');
@@ -286,7 +291,7 @@
     vehicleSelect.addEventListener('change', updateSpeedLimitFromRules);
     zoneSelect.addEventListener('change', updateSpeedLimitFromRules);
 
-    // --- 1. VẼ ĐỒNG HỒ CANVAS ---
+    // --- 1. VẼ ĐỒNG HỒ CANVAS (Làm mới liên tục) ---
     function drawGauge(speed) {
       const width = canvas.width;
       const height = canvas.height;
@@ -318,9 +323,9 @@
         ctx.arc(cx, cy, radius, startAngle, currentAngle);
 
         if (SPEED_LIMIT > 0 && speed > SPEED_LIMIT) {
-          ctx.strokeStyle = '#ef4444'; // Màu đỏ khi quá tốc độ
+          ctx.strokeStyle = '#ef4444'; // Đỏ khi vượt tốc độ
         } else {
-          ctx.strokeStyle = '#38bdf8'; // Màu xanh khi an toàn
+          ctx.strokeStyle = '#38bdf8'; // Xanh khi an toàn
         }
 
         ctx.lineWidth = 14;
@@ -336,27 +341,47 @@
       ctx.fillText(speed.toString(), cx, cy - 10);
 
       // 1.4. Vẽ chữ km/h rõ nét
-      ctx.fillStyle = '#cbd5e1'; // Màu ghi sáng rõ ràng
+      ctx.fillStyle = '#cbd5e1';
       ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
       ctx.fillText('km/h', cx, cy + 32);
     }
 
+    // Vòng lặp Render liên tục giữ Canvas luôn chủ động đẩy khung hình vào PiP
+    function renderLoop() {
+      drawGauge(currentSpeed);
+      animationFrameId = requestAnimationFrame(renderLoop);
+    }
+
     // --- 2. XỬ LÝ POPUP PICTURE-IN-PICTURE (PiP) ---
+    async function setupVideoStream() {
+      if (!hiddenVideo.srcObject) {
+        const stream = canvas.captureStream(30); // Ép 30 FPS
+        hiddenVideo.srcObject = stream;
+        try {
+          await hiddenVideo.play();
+        } catch (e) {
+          console.log("Video Play Error:", e);
+        }
+      }
+    }
+
     async function togglePiP() {
       try {
+        await setupVideoStream();
+
         if (document.pictureInPictureElement) {
           await document.exitPictureInPicture();
         } else {
-          if (!hiddenVideo.srcObject) {
-            // Chuyển Canvas thành luồng Video 30fps
-            const stream = canvas.captureStream(30);
-            hiddenVideo.srcObject = stream;
-            await hiddenVideo.play();
+          if (hiddenVideo.readyState >= 2) {
+            await hiddenVideo.requestPictureInPicture();
+          } else {
+            hiddenVideo.onloadedmetadata = async () => {
+              await hiddenVideo.requestPictureInPicture();
+            };
           }
-          await hiddenVideo.requestPictureInPicture();
         }
       } catch (err) {
-        alert("Thiết bị hoặc trình duyệt chưa hỗ trợ Popup PiP!\n" + err.message);
+        alert("Thiết bị hoặc trình duyệt không cho phép bật Popup nổi!\nLỗi: " + err.message);
       }
     }
 
@@ -378,7 +403,7 @@
         osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(880, audioCtx.currentTime);
         
-        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
 
         osc.connect(gain);
@@ -387,7 +412,7 @@
         osc.start();
         osc.stop(audioCtx.currentTime + 0.3);
       } catch (e) {
-        console.error("Lỗi phát âm thanh:", e);
+        console.error("Lỗi âm thanh:", e);
       }
     }
 
@@ -426,6 +451,10 @@
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       }
 
+      // Kích hoạt render loop và luồng video ngầm
+      if (!animationFrameId) renderLoop();
+      setupVideoStream();
+
       statusTextEl.innerText = "📡 Đang tìm tín hiệu GPS...";
       
       watchId = navigator.geolocation.watchPosition(
@@ -437,8 +466,6 @@
           } else {
             currentSpeed = Math.round(rawSpeed * 3.6);
           }
-
-          drawGauge(currentSpeed);
 
           if (SPEED_LIMIT > 0 && currentSpeed > SPEED_LIMIT) {
             statusTextEl.innerText = `⚠️ QUÁ TỐC ĐỘ: ${currentSpeed}/${SPEED_LIMIT} km/h!`;
@@ -479,6 +506,11 @@
       if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId);
         watchId = null;
+      }
+
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
       }
 
       if (document.pictureInPictureElement) {
