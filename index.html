@@ -158,12 +158,12 @@
     .viewport-container {
       position: relative;
       width: 100%;
-      flex: 1; /* Tự động mở rộng chiếm toàn bộ màn hình */
+      flex: 1;
       min-height: 250px;
       border-radius: 10px;
       overflow: hidden;
       border: 1px solid #334155;
-      background: #f8fafc;
+      background: #020617;
     }
 
     #aiVideo {
@@ -180,20 +180,53 @@
       top: 0; left: 0;
       width: 100%; height: 100%;
       z-index: 2;
-      background: transparent;
+      background: transparent !important;
       transition: all 0.2s ease;
     }
 
-    /* XỬ LÝ ĐƯỜNG NÉT ĐEN NỔI TRÊN BACKGROUND CAMERA */
+    /* FIX LỖI NỀN LEAFLET CHE CAMERA */
+    #mapContainer .leaflet-container,
+    #mapContainer .leaflet-tile-container,
+    #mapContainer .leaflet-tile,
+    #mapContainer .leaflet-map-pane {
+      background: transparent !important;
+    }
+
+    /* NÚT CHUYỂN CHẾ ĐỘ NGÀY / ĐÊM Ở GÓC PHẢI BẢN ĐỒ */
+    .map-theme-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 100;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(4px);
+      transition: all 0.2s ease;
+    }
+
+    .map-theme-btn:active {
+      transform: scale(0.9);
+    }
+
+    /* ĐƯỜNG NÉT ĐEN NỔI TRÊN BACKGROUND CAMERA (SCI-FI OVERLAY) */
     .viewport-container.camera-active #aiVideo {
       display: block;
     }
 
     .viewport-container.camera-active #mapContainer {
-      /* Chuyển bản đồ nền trắng thành nét vẽ đen rực, loại bỏ màu trắng bằng Multiply */
-      filter: grayscale(100%) invert(100%) contrast(400%) brightness(90%);
       mix-blend-mode: multiply;
-      opacity: 0.9;
+      filter: grayscale(100%) contrast(350%) brightness(110%);
+      opacity: 0.95;
     }
 
     .ai-overlay-status {
@@ -213,7 +246,7 @@
       border: 1px solid rgba(56, 189, 248, 0.3);
     }
 
-    /* BẢNG CÀI ĐẶT THU NHỎ TỐI ĐA (GỘP 1 DÒNG) */
+    /* BẢNG CÀI ĐẶT THU NHỎ TỐI ĐA */
     .settings-panel-compact {
       width: 100%;
       background-color: rgba(30, 41, 59, 0.8);
@@ -377,6 +410,9 @@
       <video id="aiVideo" playsinline autoplay muted></video>
       <div id="mapContainer"></div>
 
+      <!-- Nút đổi giao diện Ngày / Đêm nhỏ góc phải bản đồ -->
+      <button id="mapThemeBtn" class="map-theme-btn" title="Đổi giao diện Ngày/Đêm">🌙</button>
+
       <div id="aiOverlayStatus" class="ai-overlay-status" style="display: none;">
         <span>🤖 AI VISION: <b id="aiState">Đang quét...</b></span>
         <span id="autoZoneText">Vùng: Tự động</span>
@@ -387,7 +423,7 @@
     <video id="hiddenVideo" autoplay playsinline muted></video>
     <canvas id="aiProcessCanvas" width="64" height="64" style="display: none;"></canvas>
 
-    <!-- Bảng Cài Đặt Gộp Thu Nhỏ Tối Đa (Phương tiện + Dung sai) -->
+    <!-- Bảng Cài Đặt Gộp Thu Nhỏ Tối Đa -->
     <div class="settings-panel-compact">
       <div class="compact-select-item">
         <span>🚗</span>
@@ -448,7 +484,14 @@
       { id: 5, name: "Điểm bắn tốc độ QL51", lat: 10.7512, lon: 107.0142, speedLimit: 60 }
     ];
 
-    // --- SILENT AUDIO HACK (chạy ngầm tab) ---
+    // --- TILES MAP SCI-FI (ĐÊM & NGÀY) ---
+    const MAP_TILES = {
+      darkSciFi: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      lightSciFi: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+      lightOverlay: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+    };
+
+    // --- SILENT AUDIO HACK ---
     const SILENT_AUDIO_BASE64 = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
     const silentAudioNode = new Audio(SILENT_AUDIO_BASE64);
     silentAudioNode.loop = true;
@@ -458,7 +501,7 @@
 
     // --- TRẠNG THÁI ---
     let SPEED_LIMIT = 60;
-    let autoDetectedZone = 'urban'; // Mặc định 'urban' (Khu dân cư)
+    let autoDetectedZone = 'urban';
     let watchId = null;
     let wakeLock = null;
     let audioCtx = null;
@@ -466,6 +509,9 @@
     let isHudMode = false;
     let lastSpokenTime = 0;
     let lastTrapAlertTime = 0;
+    
+    // Đọc cài đặt chế độ ngày/đêm bản đồ
+    let isDarkMode = localStorage.getItem('speedAlert_mapTheme') !== 'light';
 
     let tripStartTime = null;
     let totalDistanceKm = 0;
@@ -507,6 +553,7 @@
     
     const viewportContainer = document.getElementById('viewportContainer');
     const aiVideo = document.getElementById('aiVideo');
+    const mapThemeBtn = document.getElementById('mapThemeBtn');
     const aiOverlayStatus = document.getElementById('aiOverlayStatus');
     const autoZoneText = document.getElementById('autoZoneText');
     const aiProcessCanvas = document.getElementById('aiProcessCanvas');
@@ -527,11 +574,45 @@
     vehicleSelect.addEventListener('change', saveSettings);
     toleranceSelect.addEventListener('change', saveSettings);
 
+    // --- CẬP NHẬT TILE BẢN ĐỒ KHI ĐỔI CHẾ ĐỘ NGÀY / ĐÊM HOẶC BẬT CAMERA ---
+    function updateMapTileLayer() {
+      if (!tileLayerInstance) return;
+
+      if (isAiActive) {
+        // Bật Camera: Ẩn nút chọn theme, dùng bản đồ Overlay nét cao
+        mapThemeBtn.style.display = 'none';
+        tileLayerInstance.setUrl(MAP_TILES.lightOverlay);
+      } else {
+        // Tắt Camera: Hiện nút chọn theme
+        mapThemeBtn.style.display = 'flex';
+        if (isDarkMode) {
+          tileLayerInstance.setUrl(MAP_TILES.darkSciFi);
+          mapThemeBtn.innerText = '🌙';
+          mapThemeBtn.style.background = 'rgba(15, 23, 42, 0.85)';
+          mapThemeBtn.style.color = '#38bdf8';
+          mapThemeBtn.style.borderColor = 'rgba(56, 189, 248, 0.4)';
+        } else {
+          tileLayerInstance.setUrl(MAP_TILES.lightSciFi);
+          mapThemeBtn.innerText = '☀️';
+          mapThemeBtn.style.background = 'rgba(248, 250, 252, 0.9)';
+          mapThemeBtn.style.color = '#0284c7';
+          mapThemeBtn.style.borderColor = 'rgba(2, 132, 199, 0.4)';
+        }
+      }
+    }
+
+    // Sự kiện bấm nút chuyển giao diện Đêm / Ngày
+    mapThemeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      isDarkMode = !isDarkMode;
+      localStorage.setItem('speedAlert_mapTheme', isDarkMode ? 'dark' : 'light');
+      updateMapTileLayer();
+    });
+
     // --- TỰ ĐỘNG NHẬN DIỆN KHU VỰC VÀ GIỚI HẠN TỐC ĐỘ ---
     function updateSpeedLimitAuto() {
       const vehicle = vehicleSelect.value;
       
-      // Tự động suy luận khu vực dựa trên tốc độ xe di chuyển thực tế
       if (currentSpeed > 85) {
         autoDetectedZone = (vehicle === 'car' && currentSpeed > 95) ? 'expressway' : 'rural';
       } else if (currentSpeed > 60) {
@@ -570,29 +651,31 @@
         attributionControl: false
       }).setView([lat, lon], 16);
 
-      // Sử dụng CartoDB Positron nền sáng nét cao
-      tileLayerInstance = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      const initialTileUrl = isAiActive ? MAP_TILES.lightOverlay : (isDarkMode ? MAP_TILES.darkSciFi : MAP_TILES.lightSciFi);
+      
+      tileLayerInstance = L.tileLayer(initialTileUrl, {
         maxZoom: 19,
         subdomains: 'abcd'
       }).addTo(leafletMap);
 
       const vehicleIcon = L.divIcon({
         className: 'custom-vehicle-marker',
-        html: '<div style="background:#0284c7; width:16px; height:16px; border-radius:50%; border:2px solid #ffffff; box-shadow:0 0 8px rgba(0,0,0,0.6);"></div>',
-        iconSize: [16, 16]
+        html: '<div style="background:#38bdf8; width:14px; height:14px; border-radius:50%; border:2px solid #ffffff; box-shadow:0 0 10px #38bdf8;"></div>',
+        iconSize: [14, 14]
       });
       vehicleMarker = L.marker([lat, lon], { icon: vehicleIcon }).addTo(leafletMap);
 
       SPEED_TRAPS_DB.forEach(trap => {
         const trapIcon = L.divIcon({
           className: 'custom-trap-marker',
-          html: '<div style="background:#ef4444; width:12px; height:12px; border-radius:50%; border:2px solid #ffffff; box-shadow:0 0 6px #ef4444;"></div>',
+          html: '<div style="background:#ef4444; width:12px; height:12px; border-radius:50%; border:2px solid #ffffff; box-shadow:0 0 8px #ef4444;"></div>',
           iconSize: [12, 12]
         });
         const marker = L.marker([trap.lat, trap.lon], { icon: trapIcon }).addTo(leafletMap);
         marker.bindPopup(`<b style="color:#0f172a">${trap.name}</b><br>Tối đa: ${trap.speedLimit} km/h`);
       });
 
+      updateMapTileLayer();
       setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 300);
     }
 
@@ -710,6 +793,8 @@
         aiBadgeEl.style.display = 'block';
         isAiActive = true;
         
+        updateMapTileLayer();
+
         aiToggleBtn.innerText = "📷 TẮT AI CAMERA";
         aiToggleBtn.style.backgroundColor = "#e11d48";
 
@@ -735,6 +820,9 @@
       aiBadgeEl.style.display = 'none';
       aiToggleBtn.innerText = "📷 AI QUÉT BIỂN";
       aiToggleBtn.style.backgroundColor = "#0284c7";
+
+      updateMapTileLayer();
+
       if (leafletMap) leafletMap.invalidateSize();
     }
 
@@ -893,6 +981,8 @@
       tripStartTime = Date.now();
       totalDistanceKm = 0; tripMaxSpeed = 0; overSpeedCount = 0; lastCoords = null; speedBuffer = [];
       statusTextEl.innerText = "📡 Đang kết nối định vị GPS...";
+
+      initMap(20.9252, 105.8541);
 
       watchId = navigator.geolocation.watchPosition(
         (position) => {
