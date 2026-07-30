@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>SpeedAlert Pro - Sci-Fi Camera Overlay</title>
+  <title>SpeedAlert Pro - High Contrast Black Map Lines</title>
   
   <!-- PWA Meta Tags -->
   <link rel="manifest" href="manifest.json">
@@ -210,18 +210,18 @@
       transform: scale(0.9);
     }
 
-    /* ĐƯỜNG NÉT ĐEN & TÊN ĐƯỜNG NỔI BẬT ĐÈ TRÊN CAMERA */
+    /* ĐƯỜNG KẺ BẢN ĐỒ VÀ TÊN ĐƯỜNG ĐEN TUYỀN SIÊU NÉT TRÊN CAMERA */
     .viewport-container.camera-active #aiVideo {
       display: block;
     }
 
     .viewport-container.camera-active #mapContainer {
-      opacity: 0.8;
+      opacity: 0.95;
       pointer-events: none;
     }
 
     .viewport-container.camera-active #mapContainer .leaflet-tile {
-      filter: contrast(300%) brightness(80%) grayscale(100%);
+      filter: contrast(1000%) brightness(30%) grayscale(100%);
     }
 
     .ai-overlay-status {
@@ -479,11 +479,11 @@
       { id: 5, name: "Điểm bắn tốc độ QL51", lat: 10.7512, lon: 107.0142, speedLimit: 60 }
     ];
 
-    // --- TILES MAP SCI-FI (ĐÊM & NGÀY) ---
+    // --- TILES MAP SCI-FI (DÙNG CARTO LIGHT CHUYỂN FILTER SANG ĐEN BẢN ĐỒ) ---
     const MAP_TILES = {
       darkSciFi: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
       lightSciFi: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-      cameraOverlay: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+      cameraOverlay: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
     };
 
     // --- SILENT AUDIO HACK ---
@@ -574,7 +574,7 @@
       if (!tileLayerInstance) return;
 
       if (isAiActive) {
-        // Bật Camera: Ẩn nút chọn theme, dùng bản đồ tương phản nét đậm đè lên camera
+        // Bật Camera: Ẩn nút chọn theme, dùng bản đồ tương phản nét đen tuyền
         mapThemeBtn.style.display = 'none';
         tileLayerInstance.setUrl(MAP_TILES.cameraOverlay);
       } else {
