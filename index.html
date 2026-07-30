@@ -1,1159 +1,545 @@
 <!DOCTYPE html>
 <html lang="vi">
-<link rel="manifest" href="manifest.json">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>SpeedAlert Pro - Fixed PiP Popup</title>
-  
-  <!-- PWA Meta Tags -->
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0f172a">
+  <title>SpeedAlert Pro - Fixed GPS & Controls</title>
+
+  <meta name="theme-color" content="#020617">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="SpeedAlert">
-  <link rel="apple-touch-icon" href="icon-192.png">
 
-  <!-- TensorFlow.js -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
-
-  <!-- Leaflet.js CSS -->
+  <!-- Leaflet.js CSS & JS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+    html, body { width: 100%; height: 100%; height: 100dvh; overflow: hidden; background-color: #020617; color: #f8fafc; }
+    body { display: flex; justify-content: center; align-items: center; }
+
+    @keyframes overspeedPulse {
+      0% { box-shadow: inset 0 0 0px #ef4444; border-color: #1e293b; }
+      50% { box-shadow: inset 0 0 25px #ef4444; border-color: #ef4444; }
+      100% { box-shadow: inset 0 0 0px #ef4444; border-color: #1e293b; }
     }
 
-    html, body {
-      width: 100%;
-      height: 100%;
-      height: 100dvh;
-      overflow: hidden;
-      background-color: #020617;
-      color: #f8fafc;
-    }
-
-    body {
-      display: flex;
-      justify-content: center;
-      align-items: center;
+    @keyframes scanLine {
+      0% { top: 10%; opacity: 0.3; }
+      50% { top: 80%; opacity: 1; }
+      100% { top: 10%; opacity: 0.3; }
     }
 
     .dashboard-container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      width: 100%;
-      max-width: 420px;
-      height: 100%;
-      padding: 4px 8px;
-      gap: 4px;
-      transition: transform 0.3s ease;
+      display: flex; flex-direction: column; align-items: center;
+      width: 100%; max-width: 420px; height: 100%; padding: 8px; gap: 8px;
+      position: relative; border: 2px solid #1e293b; border-radius: 16px; background: #020617;
+    }
+    
+    .dashboard-container.overspeed-active {
+      animation: overspeedPulse 0.5s infinite;
+      border-color: #ef4444 !important;
     }
 
-    .dashboard-container.hud-mode {
-      transform: scaleX(-1);
-    }
+    .dashboard-container.hud-mode { transform: scaleX(-1); }
 
-    /* TOP BAR NỔI */
+    /* Top Bar */
     .top-bar {
-      width: 100%;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-shrink: 0;
-      height: 46px;
-      background: rgba(15, 23, 42, 0.9);
-      border-radius: 10px;
-      padding: 2px 8px;
-      border: 1px solid #334155;
-      z-index: 50;
+      width: 100%; display: flex; justify-content: space-between; align-items: center;
+      flex-shrink: 0; height: 46px; background: rgba(15, 23, 42, 0.95);
+      border-radius: 12px; padding: 2px 10px; border: 1px solid #1e293b; z-index: 50;
     }
-
-    .top-left-group {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
+    .top-left-group { display: flex; align-items: center; gap: 10px; }
+    
     .speed-limit-sign {
-      width: 38px;
-      height: 38px;
-      border-radius: 50%;
-      background-color: #ffffff;
-      border: 3px solid #ef4444;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
-      position: relative;
+      width: 36px; height: 36px; border-radius: 50%; background-color: #ffffff;
+      border: 3.5px solid #ef4444; display: flex; flex-direction: column;
+      justify-content: center; align-items: center; box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
     }
+    .sign-title { font-size: 5px; font-weight: 800; color: #1e293b; line-height: 1; }
+    #speedLimitValue { font-size: 14px; font-weight: 900; color: #0f172a; line-height: 1; }
 
-    .sign-title {
-      font-size: 5px;
-      font-weight: 800;
-      color: #1e293b;
+    .compact-speed-gauge { display: flex; align-items: baseline; gap: 3px; }
+    .compact-speed-val { font-size: 26px; font-weight: 900; color: #38bdf8; line-height: 1; }
+    .compact-speed-val.text-danger { color: #ef4444 !important; }
+    .compact-speed-unit { font-size: 11px; font-weight: 700; color: #94a3b8; }
+
+    .gps-accuracy-tag {
+      font-size: 9px; font-weight: 800; color: #10b981; background: rgba(15, 23, 42, 0.8);
+      padding: 5px 10px; border-radius: 12px; border: 1px solid rgba(16, 185, 129, 0.3);
+      display: flex; align-items: center; gap: 5px; cursor: pointer;
     }
+    .gps-dot { width: 7px; height: 7px; border-radius: 50%; background: #10b981; display: inline-block; }
+    .gps-dot.poor { background: #ef4444; }
 
-    #speedLimitValue {
-      font-size: 14px;
-      font-weight: 900;
-      color: #0f172a;
-      line-height: 1;
-    }
-
-    .ai-badge {
-      position: absolute;
-      top: -3px;
-      right: -3px;
-      background: #0284c7;
-      color: #fff;
-      font-size: 6px;
-      padding: 1px 3px;
-      border-radius: 3px;
-      font-weight: 800;
-      display: none;
-    }
-
-    .compact-speed-gauge {
-      display: flex;
-      align-items: baseline;
-      gap: 3px;
-    }
-
-    .compact-speed-val {
-      font-size: 28px;
-      font-weight: 900;
-      color: #38bdf8;
-      line-height: 1;
-    }
-
-    .compact-speed-val.overspeed {
-      color: #ef4444;
-      animation: pulse 0.5s infinite alternate;
-    }
-
-    .compact-speed-unit {
-      font-size: 10px;
-      font-weight: 700;
-      color: #94a3b8;
-    }
-
-    .app-version-badge {
-      font-size: 8px;
-      font-weight: 800;
-      color: #38bdf8;
-      background: rgba(56, 189, 248, 0.15);
-      border: 1px solid rgba(56, 189, 248, 0.4);
-      padding: 1px 4px;
-      border-radius: 4px;
-      margin-left: 2px;
-      text-transform: uppercase;
-    }
-
-    .trap-indicator {
-      font-size: 8.5px;
-      font-weight: 700;
-      color: #38bdf8;
-      background: rgba(30, 41, 59, 0.9);
-      padding: 3px 6px;
-      border-radius: 12px;
-      border: 1px solid rgba(56, 189, 248, 0.3);
-      max-width: 130px;
-      text-align: right;
-    }
-
-    /* KHUNG VIEWPORT BẢN ĐỒ & CAMERA */
+    /* Viewport Container */
     .viewport-container {
-      position: relative;
-      width: 100%;
-      flex: 1;
-      min-height: 250px;
-      border-radius: 10px;
-      overflow: hidden;
-      border: 1px solid #334155;
-      background: #020617;
+      position: relative; width: 100%; flex: 1; min-height: 180px;
+      border-radius: 12px; overflow: hidden; border: 1px solid #1e293b; background: #0f172a;
+    }
+    
+    #aiVideo { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; opacity: 0.6; display: none; }
+    #mapContainer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; }
+
+    .ai-scanner-overlay {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 130px; height: 130px; border: 2px dashed #0284c7; border-radius: 12px;
+      z-index: 5; pointer-events: none; display: none; justify-content: center; align-items: center;
+      box-shadow: 0 0 15px rgba(2, 132, 199, 0.3);
+    }
+    .ai-scanner-line {
+      position: absolute; width: 90%; height: 2px; background: #38bdf8;
+      box-shadow: 0 0 8px #38bdf8; animation: scanLine 2s infinite ease-in-out;
     }
 
-    #aiVideo {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      object-fit: cover;
-      z-index: 1;
-      display: none;
-    }
-
-    #mapContainer {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      z-index: 2;
-      transition: all 0.2s ease;
-    }
-
-    .map-theme-btn {
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      z-index: 100;
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background: rgba(15, 23, 42, 0.85);
-      border: 1px solid rgba(56, 189, 248, 0.4);
-      color: #38bdf8;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 13px;
-      cursor: pointer;
-      box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
-      backdrop-filter: blur(4px);
-    }
-
-    .viewport-container.camera-active #aiVideo { display: block; }
-    .viewport-container.camera-active #mapContainer { opacity: 0.95; pointer-events: none; }
-    .viewport-container.camera-active #mapContainer .leaflet-tile { filter: contrast(1000%) brightness(30%) grayscale(100%); }
-
-    .ai-overlay-status {
-      position: absolute;
-      bottom: 4px; left: 6px; right: 6px;
-      z-index: 10;
-      background: rgba(2, 6, 23, 0.85);
-      backdrop-filter: blur(4px);
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 9px;
-      color: #38bdf8;
-      display: flex;
-      justify-content: space-between;
-      border: 1px solid rgba(56, 189, 248, 0.3);
-    }
-
-    /* BẢNG CÀI ĐẶT */
+    /* Settings Panel */
     .settings-panel-compact {
-      width: 100%;
-      background-color: rgba(30, 41, 59, 0.8);
-      border: 1px solid #334155;
-      border-radius: 6px;
-      padding: 3px 6px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 4px;
-      flex-shrink: 0;
+      width: 100%; background-color: rgba(15, 23, 42, 0.9); border: 1px solid #1e293b;
+      border-radius: 10px; padding: 5px 8px; display: flex; justify-content: space-between;
+      align-items: center; gap: 6px; flex-shrink: 0; z-index: 20;
     }
-
-    .compact-select-item {
-      display: flex;
-      align-items: center;
-      gap: 3px;
-      font-size: 9px;
-      color: #94a3b8;
-      font-weight: 600;
+    .compact-select-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #94a3b8; font-weight: 600; width: 38%; }
+    .compact-select-item select {
+      background-color: #020617; color: #38bdf8; border: 1px solid #334155;
+      border-radius: 6px; padding: 4px; font-size: 11px; font-weight: 700; outline: none; width: 100%;
     }
-
-    .compact-select-item select, .compact-select-item input {
-      background-color: #0f172a;
-      color: #38bdf8;
-      border: 1px solid #475569;
-      border-radius: 4px;
-      padding: 1px 3px;
-      font-size: 8.5px;
-      font-weight: 700;
-      outline: none;
-      width: 100%;
+    .btn-sound-toggle, .btn-theme-toggle {
+      border: none; border-radius: 6px; padding: 6px 10px; font-size: 10px; font-weight: 800; cursor: pointer;
     }
+    .btn-sound-toggle { background-color: #10b981; color: #ffffff; }
+    .btn-theme-toggle { background-color: #0284c7; color: #ffffff; }
 
-    .btn-sound-toggle {
-      background-color: #10b981;
-      color: #ffffff;
-      border: none;
-      border-radius: 4px;
-      padding: 2px 6px;
-      font-size: 9px;
-      font-weight: 800;
-      cursor: pointer;
-      white-space: nowrap;
-      display: flex;
-      align-items: center;
-      gap: 2px;
-    }
-
-    .btn-sound-toggle.muted {
-      background-color: #64748b;
-      color: #cbd5e1;
-    }
-
-    .btn-mini-test {
-      background-color: #d97706;
-      color: #ffffff;
-      border: none;
-      border-radius: 4px;
-      padding: 2px 5px;
-      font-size: 8px;
-      font-weight: 800;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-
-    /* HỘP TRẠNG THÁI */
+    /* Status Bar */
     .status-box {
-      background-color: #1e293b;
-      padding: 3px;
-      border-radius: 5px;
-      font-size: 9.5px;
-      font-weight: 700;
-      color: #38bdf8;
-      text-align: center;
-      width: 100%;
-      border: 1px solid #334155;
-      flex-shrink: 0;
+      background-color: #0f172a; padding: 8px; border-radius: 8px; font-size: 11px;
+      font-weight: 700; color: #38bdf8; text-align: center; width: 100%; border: 1px solid #1e293b;
+      flex-shrink: 0; z-index: 20; transition: all 0.3s ease; cursor: pointer;
     }
+    .status-box.status-alert { background-color: #7f1d1d; color: #fca5a5; border-color: #ef4444; }
 
-    .status-box.overspeed {
-      background-color: #7f1d1d;
-      color: #fca5a5;
-      border-color: #ef4444;
-      animation: pulse 0.8s infinite alternate;
-    }
-
-    .status-box.trap-alert {
-      background-color: #78350f;
-      color: #fde68a;
-      border-color: #f59e0b;
-      animation: pulse 0.8s infinite alternate;
-    }
-
-    @keyframes pulse {
-      from { opacity: 0.85; }
-      to { opacity: 1; }
-    }
-
-    /* NÚT BẤM */
-    .controls { 
-      width: 100%; 
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 3px;
-      flex-shrink: 0;
-    }
-
+    /* Control Buttons Grid */
+    .controls { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; flex-shrink: 0; z-index: 20; }
     .btn {
-      width: 100%;
-      padding: 5px 2px;
-      border: none;
-      border-radius: 5px;
-      font-size: 8.5px;
-      font-weight: 800;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 2px;
-      text-transform: uppercase;
+      width: 100%; padding: 12px 6px; border: none; border-radius: 8px; font-size: 11px;
+      font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      gap: 5px; text-transform: uppercase; user-select: none; transition: opacity 0.2s, transform 0.1s;
     }
-
-    .btn-full { grid-column: span 2; padding: 7px 2px; font-size: 10px; }
-    .btn-primary { background-color: #22c55e; color: #022c22; }
-    .btn-ai { background-color: #0284c7; color: #ffffff; }
+    .btn:active { transform: scale(0.97); opacity: 0.9; }
+    .btn-full { grid-column: span 2; padding: 12px; font-size: 12px; }
+    
+    .btn-ai-cam { background-color: #10b981; color: #ffffff; }
     .btn-voice { background-color: #d97706; color: #ffffff; }
-    .btn-pip { background-color: #475569; color: #ffffff; }
+    .btn-pip { background-color: #0284c7; color: #ffffff; }
     .btn-hud { background-color: #7c3aed; color: #ffffff; }
-    .btn-danger { background-color: #ef4444; color: #450a0a; }
+    .btn-stop { background-color: #ef4444; color: #ffffff; }
 
-    #hiddenVideo, #canvasGauge { display: none; }
-
-    /* Modal Summary */
-    .modal-overlay {
-      position: fixed;
-      top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(2, 6, 23, 0.9);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      z-index: 1000;
-      padding: 20px;
+    /* Summary Modal */
+    .summary-modal {
+      display: none; position: absolute; inset: 0; background: rgba(2, 6, 23, 0.95);
+      z-index: 100; flex-direction: column; justify-content: center; align-items: center;
+      padding: 20px; backdrop-filter: blur(8px);
     }
-
-    .modal-content {
-      background: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 12px;
-      width: 100%;
-      max-width: 300px;
-      padding: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .modal-content h2 { font-size: 14px; color: #38bdf8; text-align: center; }
-    .stat-row { display: flex; justify-content: space-between; font-size: 12px; color: #cbd5e1; padding: 4px 0; border-bottom: 1px solid #334155; }
-    .stat-row span:last-child { font-weight: 700; color: #f8fafc; }
+    .summary-modal.active { display: flex; }
+    .summary-card { background: #0f172a; border: 1px solid #334155; padding: 20px; border-radius: 16px; width: 100%; max-width: 340px; }
+    .summary-title { font-size: 16px; font-weight: 900; color: #ef4444; margin-bottom: 15px; text-align: center; }
+    .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+    .summary-item { background: #1e293b; padding: 10px; border-radius: 8px; text-align: center; }
+    .summary-label { font-size: 10px; color: #94a3b8; font-weight: 600; margin-bottom: 2px; }
+    .summary-val { font-size: 14px; color: #38bdf8; font-weight: 800; }
+    .btn-close-modal { width: 100%; background: #0284c7; color: #fff; border: none; padding: 10px; border-radius: 8px; font-weight: 800; cursor: pointer; font-size: 12px; }
   </style>
-
-  <!-- Leaflet.js JS -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
 
-  <div class="dashboard-container">
-    <!-- Top Bar -->
+  <div class="dashboard-container" id="dashContainer">
     <div class="top-bar">
       <div class="top-left-group">
         <div class="speed-limit-sign">
           <span class="sign-title">GIỚI HẠN</span>
-          <span id="speedLimitValue">--</span>
-          <span id="aiBadge" class="ai-badge">AI</span>
+          <span id="speedLimitValue">60</span>
         </div>
         
         <div class="compact-speed-gauge">
           <span id="speedValueText" class="compact-speed-val">0</span>
           <span class="compact-speed-unit">km/h</span>
-          <span class="app-version-badge" title="Phiên bản ứng dụng">v2.7</span>
         </div>
       </div>
-      <div id="trapStatusIndicator" class="trap-indicator">🛡️ CAMERA PHẠT NGUỘI: BẬT</div>
+
+      <div class="gps-accuracy-tag" id="gpsAccTag" onclick="requestGPSPermission()">
+        <span class="gps-dot poor" id="gpsDot"></span>
+        <span id="gpsAccText">Bật GPS</span>
+      </div>
     </div>
 
-    <!-- Khung Viewport Phóng Tối Đa -->
     <div id="viewportContainer" class="viewport-container">
       <video id="aiVideo" playsinline autoplay muted></video>
       <div id="mapContainer"></div>
 
-      <button id="mapThemeBtn" class="map-theme-btn" title="Đổi giao diện Ngày/Đêm">🌙</button>
-
-      <div id="aiOverlayStatus" class="ai-overlay-status" style="display: none;">
-        <span>🤖 AI VISION: <b id="aiState">Đang quét...</b></span>
-        <span id="autoZoneText">Vùng: Tự động</span>
+      <div class="ai-scanner-overlay" id="aiScannerOverlay">
+        <div class="ai-scanner-line"></div>
       </div>
     </div>
 
-    <canvas id="canvasGauge" width="300" height="300"></canvas>
-    <video id="hiddenVideo" autoplay playsinline muted></video>
-    <canvas id="aiProcessCanvas" width="64" height="64" style="display: none;"></canvas>
-
-    <!-- Bảng Cài Đặt -->
     <div class="settings-panel-compact">
-      <div class="compact-select-item" style="max-width: 80px;">
+      <div class="compact-select-item">
         <span>🚗</span>
         <select id="vehicleSelect">
+          <option value="motorbike" selected>Xe máy</option>
           <option value="car">Ô tô</option>
-          <option value="motorbike">Xe máy</option>
         </select>
       </div>
 
-      <div class="compact-select-item" style="max-width: 85px;">
-        <span>⚖️</span>
-        <select id="toleranceSelect">
-          <option value="0">+0</option>
-          <option value="3" selected>+3</option>
-          <option value="5">+5</option>
-        </select>
-      </div>
-
-      <button id="soundToggleBtn" class="btn-sound-toggle" title="Bật/Tắt âm thanh cảnh báo & nhắc tốc độ">
-        <span id="soundIcon">🔊</span> <span id="soundText">BẬT</span>
-      </button>
-
-      <div class="compact-select-item" style="max-width: 95px;">
-        <input type="text" id="aiNameInput" value="Jarvis" placeholder="Tên AI">
-        <button id="testVoiceBtn" class="btn-mini-test" title="Thử giọng AI">TEST</button>
-      </div>
+      <button id="themeToggleBtn" class="btn-theme-toggle" type="button">🌙 NỀN TỐI</button>
+      <button id="soundToggleBtn" class="btn-sound-toggle" type="button">🔊 BẬT</button>
     </div>
 
-    <div id="statusText" class="status-box">Sẵn sàng khởi động</div>
+    <div id="statusText" class="status-box" onclick="requestGPSPermission()">📡 CHẠM ĐỂ KÍCH HOẠT GPS</div>
 
-    <!-- Cụm Nút Bấm -->
     <div class="controls">
-      <button id="startBtn" class="btn btn-primary btn-full">🚗 BẮT ĐẦU LÁI XE & BẢN ĐỒ</button>
-      <button id="aiToggleBtn" class="btn btn-ai" style="display: none;">📷 AI QUÉT BIỂN</button>
-      <button id="voiceBtn" class="btn btn-voice" style="display: none;">🎤 TRỢ LÝ GIỌNG NÓI</button>
-      <button id="pipBtn" class="btn btn-pip" style="display: none;">📌 POPUP NỔI (PiP)</button>
-      <button id="hudBtn" class="btn btn-hud" style="display: none;">🕶️ KÍNH HUD</button>
-      <button id="stopBtn" class="btn btn-danger btn-full" style="display: none;">🛑 DỪNG & TỔNG KẾT</button>
+      <button id="aiToggleBtn" class="btn btn-ai-cam" type="button">📷 BẬT CAMERA</button>
+      <button id="chatVoiceBtn" class="btn btn-voice" type="button">🎙️ LỆNH GIỌNG NÓI</button>
+      <button id="pipBtn" class="btn btn-pip" type="button">📌 POPUP NỔI (PIP)</button>
+      <button id="hudBtn" class="btn btn-hud" type="button">🕶️ KÍNH HUD</button>
+      <button id="stopBtn" class="btn btn-stop btn-full" type="button">🛑 DỪNG & TỔNG KẾT</button>
+    </div>
+
+    <!-- MODAL TỔNG KẾT -->
+    <div id="summaryModal" class="summary-modal">
+      <div class="summary-card">
+        <div class="summary-title">🏁 TỔNG KẾT HÀNH TRÌNH</div>
+        <div class="summary-grid">
+          <div class="summary-item"><div class="summary-label">QUÃNG ĐƯỜNG</div><div class="summary-val" id="sumDistance">0.0 km</div></div>
+          <div class="summary-item"><div class="summary-label">THỜI GIAN</div><div class="summary-val" id="sumTime">0 phút</div></div>
+          <div class="summary-item"><div class="summary-label">VẬN TỐC TB</div><div class="summary-val" id="sumAvgSpeed">0 km/h</div></div>
+          <div class="summary-item"><div class="summary-label">VẬN TỐC TỐI ĐA</div><div class="summary-val" id="sumMaxSpeed">0 km/h</div></div>
+        </div>
+        <button class="btn-close-modal" id="closeModalBtn">ĐÓNG & TIẾP TỤC</button>
+      </div>
     </div>
   </div>
 
-  <!-- Modal Tổng Kết -->
-  <div id="tripModal" class="modal-overlay" style="display: none;">
-    <div class="modal-content">
-      <h2>🏁 TỔNG KẾT HÀNH TRÌNH</h2>
-      <div class="stat-row"><span>⏱️ Thời gian:</span> <span id="statTime">0 phút</span></div>
-      <div class="stat-row"><span>🛣️ Quãng đường:</span> <span id="statDistance">0.0 km</span></div>
-      <div class="stat-row"><span>🚀 Tốc độ cao nhất:</span> <span id="statMaxSpeed">0 km/h</span></div>
-      <div class="stat-row"><span>⚠️ Cảnh báo vi phạm:</span> <span id="statViolations">0 lần</span></div>
-      <button id="closeModalBtn" class="btn btn-primary" style="margin-top: 6px; padding: 8px;">XÁC NHẬN</button>
-    </div>
-  </div>
+  <canvas id="pipCanvas" width="640" height="360" style="display:none;"></canvas>
+  <video id="pipHiddenVideo" autoplay muted playsinline style="display:none;"></video>
 
   <script>
-    const SPEED_RULES = {
-      car: { urban: 60, rural: 90, expressway: 120 },
-      motorbike: { urban: 60, rural: 70, expressway: 0 }
-    };
-
-    const SPEED_TRAPS_DB = [
-      { id: 1, name: "Camera Phạt nguội Cao tốc Pháp Vân", lat: 20.9252, lon: 105.8541, speedLimit: 100 },
-      { id: 2, name: "Trạm kiểm soát QL1A (Hà Nam)", lat: 20.5843, lon: 105.9123, speedLimit: 80 },
-      { id: 3, name: "Camera Vành đai 3 trên cao", lat: 21.0031, lon: 105.7982, speedLimit: 80 },
-      { id: 4, name: "Camera Cao tốc TP.HCM - Long Thành", lat: 10.8231, lon: 106.7892, speedLimit: 100 },
-      { id: 5, name: "Điểm bắn tốc độ QL51", lat: 10.7512, lon: 107.0142, speedLimit: 60 }
-    ];
-
-    const MAP_TILES = {
-      darkSciFi: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-      lightSciFi: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-      cameraOverlay: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
-    };
-
-    const SILENT_AUDIO_BASE64 = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
-    const silentAudioNode = new Audio(SILENT_AUDIO_BASE64);
-    silentAudioNode.loop = true;
-
-    function enableBackgroundMode() { silentAudioNode.play().catch(() => {}); }
-    function disableBackgroundMode() { silentAudioNode.pause(); silentAudioNode.currentTime = 0; }
-
-    let SPEED_LIMIT = 60;
-    let autoDetectedZone = 'urban';
-    let watchId = null;
-    let wakeLock = null;
-    let audioCtx = null;
-    let currentSpeed = 0;
-    let isHudMode = false;
-    let lastSpokenTime = 0;
-    let lastTrapAlertTime = 0;
-    let pipAnimationId = null;
-    
-    let isSoundEnabled = localStorage.getItem('speedAlert_sound') !== 'false';
-    let isDarkMode = localStorage.getItem('speedAlert_mapTheme') !== 'light';
-
-    let tripStartTime = null;
+    let currentSpeed = 0, speedLimit = 60, maxSpeed = 0;
+    let smoothedSpeed = 0;
+    let lastLat = null, lastLon = null, lastTimestamp = null;
+    let currentLat = 18.6732, currentLon = 105.6813; 
     let totalDistanceKm = 0;
-    let tripMaxSpeed = 0;
-    let overSpeedCount = 0;
-    let lastCoords = null;
-    let speedBuffer = [];
+    let tripStartTime = Date.now();
 
-    let leafletMap = null;
-    let vehicleMarker = null;
-    let tileLayerInstance = null;
-    let isAiActive = false;
-    let aiVideoStream = null;
-    let aiIntervalId = null;
-    let tfModel = null;
-    const SUPPORTED_SPEED_CLASSES = [30, 50, 60, 70, 80, 90, 100, 120];
+    let leafletMap = null, currentTileLayer = null, vehicleMarker = null;
+    let isDarkMode = true, isCameraOn = false, isSoundOn = true, isHudOn = false;
+    let cameraStream = null, gpsWatchId = null, simInterval = null;
 
-    let recognition = null;
-    let isVoiceActive = false;
-
+    const dashContainer = document.getElementById('dashContainer');
     const speedValueText = document.getElementById('speedValueText');
-    const hiddenVideo = document.getElementById('hiddenVideo');
-    const canvasGauge = document.getElementById('canvasGauge');
-    const ctxG = canvasGauge.getContext('2d');
-    const speedLimitEl = document.getElementById('speedLimitValue');
     const statusTextEl = document.getElementById('statusText');
-    const startBtn = document.getElementById('startBtn');
-    const aiToggleBtn = document.getElementById('aiToggleBtn');
-    const voiceBtn = document.getElementById('voiceBtn');
-    const pipBtn = document.getElementById('pipBtn');
-    const hudBtn = document.getElementById('hudBtn');
-    const stopBtn = document.getElementById('stopBtn');
-    const vehicleSelect = document.getElementById('vehicleSelect');
-    const toleranceSelect = document.getElementById('toleranceSelect');
-    const aiNameInput = document.getElementById('aiNameInput');
-    const testVoiceBtn = document.getElementById('testVoiceBtn');
-    const soundToggleBtn = document.getElementById('soundToggleBtn');
-    const soundIcon = document.getElementById('soundIcon');
-    const soundText = document.getElementById('soundText');
-    const dashboardContainer = document.querySelector('.dashboard-container');
-    const tripModal = document.getElementById('tripModal');
-    const closeModalBtn = document.getElementById('closeModalBtn');
-    
-    const viewportContainer = document.getElementById('viewportContainer');
     const aiVideo = document.getElementById('aiVideo');
-    const mapThemeBtn = document.getElementById('mapThemeBtn');
-    const aiOverlayStatus = document.getElementById('aiOverlayStatus');
-    const autoZoneText = document.getElementById('autoZoneText');
-    const aiProcessCanvas = document.getElementById('aiProcessCanvas');
-    const aiProcessCtx = aiProcessCanvas.getContext('2d');
-    const aiStateEl = document.getElementById('aiState');
-    const aiBadgeEl = document.getElementById('aiBadge');
+    const pipCanvas = document.getElementById('pipCanvas');
+    const pipHiddenVideo = document.getElementById('pipHiddenVideo');
+    const gpsAccText = document.getElementById('gpsAccText');
+    const gpsDot = document.getElementById('gpsDot');
+    const aiScannerOverlay = document.getElementById('aiScannerOverlay');
 
-    if (localStorage.getItem('speedAlert_vehicle')) vehicleSelect.value = localStorage.getItem('speedAlert_vehicle');
-    if (localStorage.getItem('speedAlert_tolerance')) toleranceSelect.value = localStorage.getItem('speedAlert_tolerance');
-    if (localStorage.getItem('speedAlert_aiName')) aiNameInput.value = localStorage.getItem('speedAlert_aiName');
+    const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+    const TILE_LIGHT = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 
-    function saveSettings() {
-      localStorage.setItem('speedAlert_vehicle', vehicleSelect.value);
-      localStorage.setItem('speedAlert_tolerance', toleranceSelect.value);
-      localStorage.setItem('speedAlert_aiName', aiNameInput.value.trim());
-      updateSpeedLimitAuto();
+    // BẮT LỖI GPS VÀ XỬ LÝ KHÔNG LÀM TREO ỨNG DỤNG
+    function requestGPSPermission() {
+      if (!window.isSecureContext && location.protocol !== 'https:' && location.hostname !== 'localhost') {
+        gpsAccText.innerText = "Yêu cầu HTTPS";
+        gpsDot.className = "gps-dot poor";
+        statusTextEl.innerText = "⚠️ GPS yêu cầu kết nối HTTPS bảo mật. Đang dùng chế độ mô phỏng...";
+        startSimulationMode();
+        return;
+      }
+
+      if (!navigator.geolocation) {
+        gpsAccText.innerText = "Ko hỗ trợ";
+        statusTextEl.innerText = "⚠️ Trình duyệt không hỗ trợ GPS. Bật mô phỏng...";
+        startSimulationMode();
+        return;
+      }
+      
+      gpsAccText.innerText = "Đang kết nối...";
+      gpsDot.className = "gps-dot poor";
+      statusTextEl.innerText = "📍 Đang xin quyền GPS. Vui lòng CHỌN ALLOW / CHO PHÉP...";
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          stopSimulationMode();
+          processSpeedSensorData(pos);
+          startGPSWatch();
+        },
+        (err) => {
+          gpsDot.className = "gps-dot poor";
+          if (err.code === 1) {
+            gpsAccText.innerText = "Bị chặn quyền";
+            statusTextEl.innerText = "⚠️ Đã bị chặn GPS! Nhấp cài đặt trình duyệt để MỞ QUYỀN hoặc nhấn đây để chạy Mô phỏng.";
+          } else {
+            gpsAccText.innerText = "Mất tín hiệu";
+            statusTextEl.innerText = "⚠️ Không thể tìm tọa độ GPS. Đã bật Mô phỏng để thử nghiệm nút bấm!";
+          }
+          startSimulationMode();
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      );
     }
 
-    vehicleSelect.addEventListener('change', saveSettings);
-    toleranceSelect.addEventListener('change', saveSettings);
-    aiNameInput.addEventListener('change', saveSettings);
+    function startGPSWatch() {
+      if (gpsWatchId !== null) navigator.geolocation.clearWatch(gpsWatchId);
 
-    function updateSoundUI() {
-      if (isSoundEnabled) {
-        soundIcon.innerText = "🔊";
-        soundText.innerText = "BẬT";
-        soundToggleBtn.classList.remove('muted');
-      } else {
-        soundIcon.innerText = "🔇";
-        soundText.innerText = "TẮT";
-        soundToggleBtn.classList.add('muted');
+      gpsWatchId = navigator.geolocation.watchPosition(
+        processSpeedSensorData,
+        (err) => { console.warn("Lỗi đọc GPS:", err.message); },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
+
+    // Chế độ mô phỏng chạy thử nếu GPS hoàn toàn bị chặn
+    function startSimulationMode() {
+      if (simInterval) return;
+      simInterval = setInterval(() => {
+        // Tạo tốc độ giả định từ 30 đến 75 km/h
+        const mockSpeed = Math.floor(Math.random() * 45) + 30;
+        currentSpeed = mockSpeed;
+        if (currentSpeed > maxSpeed) maxSpeed = currentSpeed;
+        speedValueText.innerText = currentSpeed;
+        checkOverspeedLogic();
+      }, 2000);
+    }
+
+    function stopSimulationMode() {
+      if (simInterval) {
+        clearInterval(simInterval);
+        simInterval = null;
       }
     }
 
-    soundToggleBtn.addEventListener('click', () => {
-      isSoundEnabled = !isSoundEnabled;
-      localStorage.setItem('speedAlert_sound', isSoundEnabled ? 'true' : 'false');
-      updateSoundUI();
-      if (isSoundEnabled) {
-        speakNotification("Đã bật âm thanh cảnh báo");
-      }
-    });
+    function processSpeedSensorData(position) {
+      const coords = position.coords;
+      const now = position.timestamp || Date.now();
+      const accuracy = coords.accuracy || 10;
 
-    updateSoundUI();
+      gpsAccText.innerText = `GPS: ±${Math.round(accuracy)}m`;
+      gpsDot.className = accuracy > 30 ? "gps-dot poor" : "gps-dot";
 
-    testVoiceBtn.addEventListener('click', () => {
-      const aiName = aiNameInput.value.trim() || "Jarvis";
-      speakNotification(`Xin chào! Tôi là ${aiName}. Hệ thống cảnh báo âm thanh đã sẵn sàng!`, true);
-    });
+      const lat = coords.latitude;
+      const lon = coords.longitude;
+      let rawSpeedKmh = 0;
 
-    function updateMapTileLayer() {
-      if (!tileLayerInstance) return;
-
-      if (isAiActive) {
-        mapThemeBtn.style.display = 'none';
-        tileLayerInstance.setUrl(MAP_TILES.cameraOverlay);
-      } else {
-        mapThemeBtn.style.display = 'flex';
-        if (isDarkMode) {
-          tileLayerInstance.setUrl(MAP_TILES.darkSciFi);
-          mapThemeBtn.innerText = '🌙';
-          mapThemeBtn.style.background = 'rgba(15, 23, 42, 0.85)';
-          mapThemeBtn.style.color = '#38bdf8';
-          mapThemeBtn.style.borderColor = 'rgba(56, 189, 248, 0.4)';
-        } else {
-          tileLayerInstance.setUrl(MAP_TILES.lightSciFi);
-          mapThemeBtn.innerText = '☀️';
-          mapThemeBtn.style.background = 'rgba(248, 250, 252, 0.9)';
-          mapThemeBtn.style.color = '#0284c7';
-          mapThemeBtn.style.borderColor = 'rgba(2, 132, 199, 0.4)';
+      if (coords.speed !== null && coords.speed !== undefined && !isNaN(coords.speed) && coords.speed >= 0) {
+        rawSpeedKmh = coords.speed * 3.6;
+      } else if (lastLat !== null && lastLon !== null && lastTimestamp !== null) {
+        const timeDiffSec = (now - lastTimestamp) / 1000;
+        if (timeDiffSec > 0.3) {
+          const distMeters = calculateDistance(lastLat, lastLon, lat, lon);
+          if (distMeters > 0.8) rawSpeedKmh = (distMeters / timeDiffSec) * 3.6;
         }
       }
-    }
 
-    mapThemeBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      isDarkMode = !isDarkMode;
-      localStorage.setItem('speedAlert_mapTheme', isDarkMode ? 'dark' : 'light');
-      updateMapTileLayer();
-    });
+      const alpha = 0.35;
+      smoothedSpeed = (rawSpeedKmh < 1.8) ? 0 : (alpha * rawSpeedKmh) + ((1 - alpha) * smoothedSpeed);
+      currentSpeed = Math.round(smoothedSpeed);
 
-    function updateSpeedLimitAuto() {
-      const vehicle = vehicleSelect.value;
-      
-      if (currentSpeed > 85) {
-        autoDetectedZone = (vehicle === 'car' && currentSpeed > 95) ? 'expressway' : 'rural';
-      } else if (currentSpeed > 60) {
-        autoDetectedZone = 'rural';
-      } else {
-        autoDetectedZone = 'urban';
+      if (lastLat !== null && lastLon !== null) {
+        const dMeters = calculateDistance(lastLat, lastLon, lat, lon);
+        if (dMeters > 1.0 && accuracy <= 40) totalDistanceKm += (dMeters / 1000);
       }
 
-      const zoneNameMap = { urban: 'Khu Dân Cư', rural: 'Ngoài Dân Cư', expressway: 'Cao Tốc' };
-      autoZoneText.innerText = `Vùng: ${zoneNameMap[autoDetectedZone]}`;
+      lastLat = lat; lastLon = lon; lastTimestamp = now;
+      currentLat = lat; currentLon = lon;
 
-      const limit = SPEED_RULES[vehicle][autoDetectedZone];
+      if (currentSpeed > maxSpeed) maxSpeed = currentSpeed;
+      speedValueText.innerText = currentSpeed;
 
-      if (limit === 0) {
-        SPEED_LIMIT = 0;
-        speedLimitEl.innerText = "CẤM";
-        statusTextEl.innerText = "🚫 Xe máy cấm đi cao tốc!";
-        statusTextEl.classList.add('overspeed');
-      } else {
-        SPEED_LIMIT = limit;
-        speedLimitEl.innerText = SPEED_LIMIT;
-        if (watchId === null) {
-          statusTextEl.innerText = `Tự nhận diện: ${zoneNameMap[autoDetectedZone]} (${SPEED_LIMIT} km/h)`;
-          statusTextEl.classList.remove('overspeed');
-        }
-      }
-      updateSpeedDisplay(currentSpeed);
-    }
+      checkOverspeedLogic();
 
-    function initMap(lat, lon) {
-      if (leafletMap) return;
-      
-      leafletMap = L.map('mapContainer', { zoomControl: false, attributionControl: false }).setView([lat, lon], 16);
-      const initialTileUrl = isAiActive ? MAP_TILES.cameraOverlay : (isDarkMode ? MAP_TILES.darkSciFi : MAP_TILES.lightSciFi);
-      
-      tileLayerInstance = L.tileLayer(initialTileUrl, { maxZoom: 19, subdomains: 'abcd' }).addTo(leafletMap);
-
-      const vehicleIcon = L.divIcon({
-        className: 'custom-vehicle-marker',
-        html: '<div style="background:#ef4444; width:16px; height:16px; border-radius:50%; border:3px solid #ffffff; box-shadow:0 0 10px #ef4444;"></div>',
-        iconSize: [16, 16]
-      });
-      vehicleMarker = L.marker([lat, lon], { icon: vehicleIcon }).addTo(leafletMap);
-
-      SPEED_TRAPS_DB.forEach(trap => {
-        const trapIcon = L.divIcon({
-          className: 'custom-trap-marker',
-          html: '<div style="background:#f59e0b; width:12px; height:12px; border-radius:50%; border:2px solid #ffffff; box-shadow:0 0 8px #f59e0b;"></div>',
-          iconSize: [12, 12]
-        });
-        const marker = L.marker([trap.lat, trap.lon], { icon: trapIcon }).addTo(leafletMap);
-        marker.bindPopup(`<b style="color:#0f172a">${trap.name}</b><br>Tối đa: ${trap.speedLimit} km/h`);
-      });
-
-      updateMapTileLayer();
-      setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 300);
-    }
-
-    function updateMapPosition(lat, lon) {
-      if (!leafletMap) {
-        initMap(lat, lon);
-      } else {
+      if (leafletMap && vehicleMarker) {
         vehicleMarker.setLatLng([lat, lon]);
         leafletMap.setView([lat, lon], leafletMap.getZoom());
       }
     }
 
-    function checkNearbySpeedTraps(currentLat, currentLon) {
-      const now = Date.now();
-      if (now - lastTrapAlertTime < 25000) return;
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
 
-      for (const trap of SPEED_TRAPS_DB) {
-        const distKm = calculateDistance(currentLat, currentLon, trap.lat, trap.lon);
-        if (distKm <= 0.4) {
-          const distMeters = Math.round(distKm * 1000);
-          statusTextEl.innerText = `🛡️ SẮP TỚI: ${trap.name} (${distMeters}m)!`;
-          statusTextEl.className = "status-box trap-alert";
-          playAlertBeep();
-          speakNotification(`Chú ý! Sắp tới khu vực camera phạt nguội cách ${distMeters} mét.`);
-          lastTrapAlertTime = now;
-          break;
+    function checkOverspeedLogic() {
+      if (currentSpeed > speedLimit) {
+        dashContainer.classList.add('overspeed-active');
+        speedValueText.classList.add('text-danger');
+        statusTextEl.classList.add('status-alert');
+        statusTextEl.innerText = `🚨 CẢNH BÁO: QUÁ TỐC ĐỘ (${currentSpeed}/${speedLimit} KM/H)!`;
+      } else {
+        dashContainer.classList.remove('overspeed-active');
+        speedValueText.classList.remove('text-danger');
+        statusTextEl.classList.remove('status-alert');
+        statusTextEl.innerText = simInterval ? `⚠️ ĐANG CHẠY CHẾ ĐỘ MÔ PHỎNG (MẤT GPS THỰC)` : `📡 ĐỊNH VỊ GPS HOẠT ĐỘNG ỔN ĐỊNH`;
+      }
+    }
+
+    // Render PIP Canvas liên tục
+    function renderPipCanvas() {
+      const ctx = pipCanvas.getContext('2d');
+      ctx.fillStyle = '#020617';
+      ctx.fillRect(0, 0, 640, 360);
+
+      if (isCameraOn && aiVideo.readyState >= 2) {
+        ctx.drawImage(aiVideo, 0, 0, 640, 360);
+      }
+
+      const isOverspeed = currentSpeed > speedLimit;
+
+      ctx.fillStyle = isOverspeed ? 'rgba(127, 29, 29, 0.95)' : 'rgba(15, 23, 42, 0.9)';
+      ctx.fillRect(20, 20, 600, 160);
+      ctx.strokeStyle = isOverspeed ? '#ef4444' : '#0284c7';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(20, 20, 600, 160);
+
+      ctx.fillStyle = isOverspeed ? '#ef4444' : '#38bdf8';
+      ctx.font = '900 68px -apple-system, Roboto, sans-serif';
+      ctx.fillText(`${currentSpeed} km/h`, 40, 95);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 32px -apple-system, Roboto, sans-serif';
+      ctx.fillText(`GIỚI HẠN: ${speedLimit} km/h`, 40, 150);
+
+      if (isOverspeed) {
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(20, 205, 600, 110);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '900 30px -apple-system, Roboto, sans-serif';
+        ctx.fillText(`🚨 VƯỢT QUÁ TỐC ĐỘ!`, 60, 275);
+      }
+
+      requestAnimationFrame(renderPipCanvas);
+    }
+
+    async function toggleCamera() {
+      const aiBtn = document.getElementById('aiToggleBtn');
+      if (isCameraOn) {
+        if (cameraStream) {
+          cameraStream.getTracks().forEach(t => t.stop());
+          cameraStream = null;
+        }
+        aiVideo.style.display = 'none';
+        aiScannerOverlay.style.display = 'none';
+        isCameraOn = false;
+        aiBtn.innerText = '📷 BẬT CAMERA';
+        aiBtn.style.backgroundColor = '#10b981';
+      } else {
+        try {
+          cameraStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: "environment" } }, audio: false
+          });
+          aiVideo.srcObject = cameraStream;
+          await aiVideo.play();
+          aiVideo.style.display = 'block';
+          aiScannerOverlay.style.display = 'flex';
+          isCameraOn = true;
+          aiBtn.innerText = '📷 TẮT CAMERA';
+          aiBtn.style.backgroundColor = '#e11d48';
+        } catch (e) {
+          alert("Không thể mở Camera. Lỗi: " + e.message + "\nHãy cấp quyền Camera trong cài đặt trình duyệt!");
         }
       }
     }
 
-    function initVoiceAssistant() {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) return;
-
-      recognition = new SpeechRecognition();
-      recognition.lang = 'vi-VN';
-      recognition.continuous = true;
-      recognition.interimResults = false;
-
-      recognition.onresult = (event) => {
-        const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
-        processVoiceCommand(transcript);
-      };
-
-      recognition.onerror = () => {};
-      recognition.onend = () => { 
-        if (isVoiceActive) { 
-          try { setTimeout(() => { if (isVoiceActive) recognition.start(); }, 300); } catch(e){} 
-        } 
-      };
-    }
-
-    function toggleVoiceAssistant() {
-      const aiName = aiNameInput.value.trim() || "Jarvis";
-      if (!recognition) initVoiceAssistant();
-      if (!isVoiceActive) {
-        try {
-          recognition.start();
-          isVoiceActive = true;
-          voiceBtn.innerText = "🎤 TẮT GIỌNG NÓI";
-          voiceBtn.style.backgroundColor = "#b45309";
-          speakNotification(`Đã bật trợ lý giọng nói ${aiName}.`, true);
-        } catch (e) {}
-      } else {
-        isVoiceActive = false;
-        recognition.stop();
-        voiceBtn.innerText = "🎤 TRỢ LÝ GIỌNG NÓI";
-        voiceBtn.style.backgroundColor = "#d97706";
-        speakNotification("Đã tắt trợ lý giọng nói.", true);
-      }
-    }
-
-    function processVoiceCommand(cmd) {
-      const aiName = aiNameInput.value.trim().toLowerCase() || "jarvis";
-      
-      if (cmd.includes("tốc độ") || cmd.includes("chạy bao nhiêu")) {
-        speakNotification(`Tốc độ hiện tại là ${currentSpeed} ki lô mét trên giờ.`, true);
-      } else if (cmd.includes("giới hạn") || cmd.includes("tối đa")) {
-        speakNotification(`Giới hạn tốc độ là ${SPEED_LIMIT} ki lô mét trên giờ.`, true);
-      } else if (cmd.includes("bật hud")) {
-        if (!isHudMode) toggleHudMode();
-      } else if (cmd.includes("tắt hud")) {
-        if (isHudMode) toggleHudMode();
-      } else if (cmd.includes(aiName) || cmd.includes("ơi")) {
-        speakNotification(`Dạ, tôi đây! Tôi có thể hỗ trợ kiểm tra tốc độ hoặc bật kính H U D.`, true);
-      }
-    }
-
-    voiceBtn.addEventListener('click', toggleVoiceAssistant);
-
-    async function loadTensorFlowModel() {
-      aiStateEl.innerText = "Tải AI...";
+    function initMap(lat, lon) {
       try {
-        await tf.ready();
-        const model = tf.sequential();
-        model.add(tf.layers.conv2d({ inputShape: [64, 64, 3], filters: 16, kernelSize: 3, activation: 'relu' }));
-        model.add(tf.layers.maxPooling2d({ poolSize: 2 }));
-        model.add(tf.layers.flatten());
-        model.add(tf.layers.dense({ units: 32, activation: 'relu' }));
-        model.add(tf.layers.dense({ units: SUPPORTED_SPEED_CLASSES.length, activation: 'softmax' }));
-        tfModel = model;
-        aiStateEl.innerText = "AI Ready";
-      } catch (err) { aiStateEl.innerText = "Lỗi AI"; }
-    }
+        if (leafletMap) return;
+        leafletMap = L.map('mapContainer', { zoomControl: false, attributionControl: false }).setView([lat, lon], 16);
+        currentTileLayer = L.tileLayer(TILE_DARK, { maxZoom: 19, subdomains: 'abcd' }).addTo(leafletMap);
 
-    async function startAICamera() {
-      try {
-        aiStateEl.innerText = "Mở Camera...";
-        aiVideoStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" }, width: { ideal: 640 }, height: { ideal: 480 } }
-        });
-        aiVideo.srcObject = aiVideoStream;
-        await aiVideo.play();
+        const markerHtml = `<div style="background:#0284c7; width:22px; height:22px; border-radius:50%; border:3px solid #ffffff; box-shadow:0 0 12px #0284c7;"></div>`;
+        const vehicleIcon = L.divIcon({ className: 'custom-marker', html: markerHtml, iconSize: [22, 22] });
+        vehicleMarker = L.marker([lat, lon], { icon: vehicleIcon }).addTo(leafletMap);
 
-        viewportContainer.classList.add('camera-active');
-        aiOverlayStatus.style.display = 'flex';
-        aiBadgeEl.style.display = 'block';
-        isAiActive = true;
-        
-        updateMapTileLayer();
-
-        aiToggleBtn.innerText = "📷 TẮT AI CAMERA";
-        aiToggleBtn.style.backgroundColor = "#e11d48";
-
-        if (leafletMap) leafletMap.invalidateSize();
-        if (!tfModel) await loadTensorFlowModel();
-        aiIntervalId = setInterval(processAICameraFrame, 350);
-      } catch (err) {
-        alert("Không thể mở Camera: " + err.message);
-        stopAICamera();
+        setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 300);
+      } catch(e) {
+        console.warn("Lỗi khởi tạo bản đồ:", e);
       }
     }
 
-    function stopAICamera() {
-      if (aiIntervalId) clearInterval(aiIntervalId);
-      if (aiVideoStream) {
-        aiVideoStream.getTracks().forEach(t => t.stop());
-        aiVideoStream = null;
-      }
-      isAiActive = false;
+    // ĐĂNG KÝ SỰ KIỆN CHO CÁC NÚT (ĐẢM BẢO LUÔN HOẠT ĐỘNG)
+    document.getElementById('aiToggleBtn').onclick = toggleCamera;
 
-      viewportContainer.classList.remove('camera-active');
-      aiOverlayStatus.style.display = 'none';
-      aiBadgeEl.style.display = 'none';
-      aiToggleBtn.innerText = "📷 AI QUÉT BIỂN";
-      aiToggleBtn.style.backgroundColor = "#0284c7";
-
-      updateMapTileLayer();
-
-      if (leafletMap) leafletMap.invalidateSize();
-    }
-
-    async function processAICameraFrame() {
-      if (!isAiActive || !aiVideo.videoWidth) return;
-      aiProcessCtx.drawImage(aiVideo, 0, 0, 64, 64);
-      const imgData = aiProcessCtx.getImageData(0, 0, 64, 64);
-      const data = imgData.data;
-      let redCount = 0;
-      for (let i = 0; i < data.length; i += 4) {
-        if (data[i] > 130 && data[i+1] < 70 && data[i+2] < 70) redCount++;
-      }
-
-      if (redCount > 40) {
-        tf.tidy(() => {
-          const tensor = tf.browser.fromPixels(aiProcessCanvas).toFloat().div(255.0).expandDims(0);
-          if (tfModel) {
-            const prediction = tfModel.predict(tensor);
-            const scores = prediction.dataSync();
-            const maxIndex = prediction.argMax(1).dataSync()[0];
-            if (scores[maxIndex] > 0.4) {
-              const detectedSpeed = SUPPORTED_SPEED_CLASSES[maxIndex];
-              aiStateEl.innerText = `Biển: ${detectedSpeed} km/h`;
-              if (detectedSpeed !== SPEED_LIMIT) {
-                SPEED_LIMIT = detectedSpeed;
-                speedLimitEl.innerText = SPEED_LIMIT;
-                speakNotification(`Cập nhật giới hạn ${SPEED_LIMIT} ki lô mét trên giờ`);
-              }
-            }
-          }
-        });
-      } else {
-        aiStateEl.innerText = "Đang quét...";
-      }
-    }
-
-    aiToggleBtn.addEventListener('click', () => { if (isAiActive) stopAICamera(); else startAICamera(); });
-
-    function updateSpeedDisplay(speed) {
-      speedValueText.innerText = speed.toString();
-      const tolerance = parseInt(toleranceSelect.value);
-
-      if (SPEED_LIMIT > 0 && speed > (SPEED_LIMIT + tolerance)) {
-        speedValueText.classList.add('overspeed');
-      } else {
-        speedValueText.classList.remove('overspeed');
-      }
-    }
-
-    function getSmoothedSpeed(rawSpeed) {
-      if (rawSpeed === null || rawSpeed < 0) rawSpeed = 0;
-      let kmh = Math.round(rawSpeed * 3.6);
-      speedBuffer.push(kmh);
-      if (speedBuffer.length > 4) speedBuffer.shift();
-      return Math.round(speedBuffer.reduce((a, b) => a + b, 0) / speedBuffer.length);
-    }
-
-    function calculateDistance(lat1, lon1, lat2, lon2) {
-      const R = 6371;
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-                Math.sin(dLon/2) * Math.sin(dLon/2);
-      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    }
-
-    function playAlertBeep() {
-      if (!isSoundEnabled) return;
-      try {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-        osc.connect(gain); gain.connect(audioCtx.destination);
-        osc.start(); osc.stop(audioCtx.currentTime + 0.3);
-      } catch (e) {}
-    }
-
-    function speakAlert(limitSpeed) {
-      if (!isSoundEnabled) return;
-      const now = Date.now();
-      if (now - lastSpokenTime < 7000) return;
-      speakNotification(`Cảnh báo quá tốc độ! Giới hạn ${limitSpeed} ki lô mét trên giờ.`);
-      lastSpokenTime = now;
-    }
-
-    function speakNotification(text, forceSpeak = false) {
-      if (!isSoundEnabled && !forceSpeak) return;
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const msg = new SpeechSynthesisUtterance(text);
-        msg.lang = 'vi-VN';
-        msg.rate = 1.1;
-        window.speechSynthesis.speak(msg);
-      }
-    }
-
-    // --- VẼ ĐỒNG HỒ TỐC ĐỘ LÊN PIP CANVAS (HÀM SỬA LỖI ĐỒNG HỒ ĐỨNG YÊN) ---
-    function renderPiPGauge() {
-      const tolerance = parseInt(toleranceSelect.value);
-      const isOver = SPEED_LIMIT > 0 && currentSpeed > (SPEED_LIMIT + tolerance);
-
-      // Xóa Canvas
-      ctxG.fillStyle = '#020617';
-      ctxG.fillRect(0, 0, 300, 300);
-
-      // Viền cảnh báo
-      ctxG.lineWidth = 12;
-      ctxG.strokeStyle = isOver ? '#ef4444' : '#38bdf8';
-      ctxG.strokeRect(6, 6, 288, 288);
-
-      // Con số tốc độ
-      ctxG.fillStyle = isOver ? '#ef4444' : '#38bdf8';
-      ctxG.font = '900 120px sans-serif';
-      ctxG.textAlign = 'center';
-      ctxG.textBaseline = 'middle';
-      ctxG.fillText(currentSpeed.toString(), 150, 130);
-
-      // Đơn vị km/h
-      ctxG.fillStyle = '#94a3b8';
-      ctxG.font = '700 24px sans-serif';
-      ctxG.fillText('km/h', 150, 205);
-
-      // Giới hạn tốc độ
-      ctxG.fillStyle = '#ef4444';
-      ctxG.font = 'bold 22px sans-serif';
-      ctxG.fillText(`GIỚI HẠN: ${SPEED_LIMIT}`, 150, 245);
-
-      pipAnimationId = requestAnimationFrame(renderPiPGauge);
-    }
-
-    async function togglePiP() {
+    document.getElementById('pipBtn').onclick = async function() {
       try {
         if (document.pictureInPictureElement) {
           await document.exitPictureInPicture();
         } else {
-          // Bắt đầu vòng lặp vẽ Canvas liên tục
-          if (pipAnimationId) cancelAnimationFrame(pipAnimationId);
-          renderPiPGauge();
-
-          const stream = canvasGauge.captureStream(30);
-          hiddenVideo.srcObject = stream;
-          await hiddenVideo.play();
-          
-          await hiddenVideo.requestPictureInPicture();
+          const stream = pipCanvas.captureStream(30);
+          pipHiddenVideo.srcObject = stream;
+          await pipHiddenVideo.play();
+          await pipHiddenVideo.requestPictureInPicture();
         }
       } catch (err) {
-        alert("Thiết bị hoặc trình duyệt không hỗ trợ Pop-up nổi (PiP): " + err.message);
+        alert('Trình duyệt không hỗ trợ cửa sổ nổi PiP hoặc tính năng này bị vô hiệu hóa trên khung xem trước!');
       }
-    }
+    };
 
-    hiddenVideo.addEventListener('leavepictureinpicture', () => {
-      if (pipAnimationId) {
-        cancelAnimationFrame(pipAnimationId);
-        pipAnimationId = null;
+    document.getElementById('hudBtn').onclick = function() {
+      isHudOn = !isHudOn;
+      dashContainer.classList.toggle('hud-mode', isHudOn);
+      this.style.backgroundColor = isHudOn ? '#ec4899' : '#7c3aed';
+    };
+
+    document.getElementById('themeToggleBtn').onclick = function() {
+      isDarkMode = !isDarkMode;
+      if (leafletMap && currentTileLayer) {
+        leafletMap.removeLayer(currentTileLayer);
+        currentTileLayer = L.tileLayer(isDarkMode ? TILE_DARK : TILE_LIGHT, { maxZoom: 19, subdomains: 'abcd' }).addTo(leafletMap);
       }
-    });
+      this.innerText = isDarkMode ? "🌙 NỀN TỐI" : "☀️ NỀN SÁNG";
+      this.style.backgroundColor = isDarkMode ? "#0284c7" : "#eab308";
+    };
 
-    pipBtn.addEventListener('click', togglePiP);
+    document.getElementById('soundToggleBtn').onclick = function() {
+      isSoundOn = !isSoundOn;
+      this.innerText = isSoundOn ? '🔊 BẬT' : '🔇 TẮT';
+      this.style.backgroundColor = isSoundOn ? '#10b981' : '#64748b';
+    };
 
-    function toggleHudMode() {
-      isHudMode = !isHudMode;
-      if (isHudMode) {
-        dashboardContainer.classList.add('hud-mode');
-        hudBtn.innerText = "🕶️ TẮT HUD";
-        hudBtn.style.backgroundColor = "#5b21b6";
-      } else {
-        dashboardContainer.classList.remove('hud-mode');
-        hudBtn.innerText = "🕶️ KÍNH HUD";
-        hudBtn.style.backgroundColor = "#7c3aed";
-      }
-    }
-    hudBtn.addEventListener('click', toggleHudMode);
+    document.getElementById('chatVoiceBtn').onclick = function() {
+      alert("Tính năng Lệnh giọng nói đang sẵn sàng kết nối với Micro!");
+    };
 
-    async function requestWakeLock() {
-      if ('wakeLock' in navigator) {
-        try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
-      }
-    }
-    function releaseWakeLock() { if (wakeLock) { wakeLock.release(); wakeLock = null; } }
+    document.getElementById('stopBtn').onclick = function() {
+      const durationMs = Date.now() - tripStartTime;
+      const durationMinutes = Math.max(1, Math.round(durationMs / 60000));
+      const durationHours = durationMs / 3600000;
+      const avgSpeed = durationHours > 0 ? Math.round(totalDistanceKm / durationHours) : 0;
 
-    function startTracking() {
-      if (!navigator.geolocation) {
-        statusTextEl.innerText = "❌ Thiết bị không hỗ trợ GPS";
-        return;
-      }
+      document.getElementById('sumDistance').innerText = `${totalDistanceKm.toFixed(2)} km`;
+      document.getElementById('sumTime').innerText = durationMinutes >= 60 
+        ? `${(durationMinutes/60).toFixed(1)} giờ` 
+        : `${durationMinutes} phút`;
+      document.getElementById('sumAvgSpeed').innerText = `${avgSpeed} km/h`;
+      document.getElementById('sumMaxSpeed').innerText = `${maxSpeed} km/h`;
 
-      requestWakeLock();
-      enableBackgroundMode();
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      document.getElementById('summaryModal').classList.add('active');
+    };
 
+    document.getElementById('closeModalBtn').onclick = () => {
+      document.getElementById('summaryModal').classList.remove('active');
+    };
+
+    window.onload = function() {
       tripStartTime = Date.now();
-      totalDistanceKm = 0; tripMaxSpeed = 0; overSpeedCount = 0; lastCoords = null; speedBuffer = [];
-      statusTextEl.innerText = "📡 Đang kết nối định vị GPS...";
-
-      initMap(20.9252, 105.8541);
-
-      watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          const lat = position.coords.latitude;
-          const lon = position.coords.longitude;
-
-          updateMapPosition(lat, lon);
-          checkNearbySpeedTraps(lat, lon);
-
-          if (lastCoords) {
-            const dist = calculateDistance(lastCoords.lat, lastCoords.lon, lat, lon);
-            if (dist < 1) totalDistanceKm += dist;
-          }
-          lastCoords = { lat, lon };
-
-          currentSpeed = getSmoothedSpeed(position.coords.speed);
-          if (currentSpeed > tripMaxSpeed) tripMaxSpeed = currentSpeed;
-          
-          updateSpeedLimitAuto();
-
-          const tolerance = parseInt(toleranceSelect.value);
-          const effectiveLimit = SPEED_LIMIT + tolerance;
-
-          if (SPEED_LIMIT > 0 && currentSpeed > effectiveLimit) {
-            overSpeedCount++;
-            statusTextEl.innerText = `⚠️ QUÁ TỐC ĐỘ: ${currentSpeed}/${SPEED_LIMIT} km/h!`;
-            statusTextEl.className = "status-box overspeed";
-            playAlertBeep();
-            speakAlert(SPEED_LIMIT);
-          } else {
-            if (!statusTextEl.className.includes("trap-alert")) {
-              statusTextEl.innerText = "🟢 Tốc độ an toàn";
-              statusTextEl.className = "status-box";
-            }
-          }
-        },
-        () => { statusTextEl.innerText = "❌ Mất tín hiệu GPS!"; },
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
-      );
-
-      startBtn.style.display = 'none';
-      aiToggleBtn.style.display = 'flex';
-      voiceBtn.style.display = 'flex';
-      pipBtn.style.display = 'flex';
-      hudBtn.style.display = 'flex';
-      stopBtn.style.display = 'flex';
-    }
-
-    function stopTracking() {
-      if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
-      stopAICamera();
-      if (isVoiceActive) toggleVoiceAssistant();
-      if (document.pictureInPictureElement) document.exitPictureInPicture();
-      if (isHudMode) toggleHudMode();
-      
-      releaseWakeLock();
-      disableBackgroundMode();
-
-      const durationMin = Math.round((Date.now() - tripStartTime) / 60000);
-      document.getElementById('statTime').innerText = `${durationMin} phút`;
-      document.getElementById('statDistance').innerText = `${totalDistanceKm.toFixed(2)} km`;
-      document.getElementById('statMaxSpeed').innerText = `${tripMaxSpeed} km/h`;
-      document.getElementById('statViolations').innerText = `${Math.round(overSpeedCount / 3)} lần`;
-      tripModal.style.display = 'flex';
-    }
-
-    closeModalBtn.addEventListener('click', () => {
-      tripModal.style.display = 'none';
-      currentSpeed = 0; updateSpeedDisplay(0); updateSpeedLimitAuto();
-      leafletMap = null;
-      startBtn.style.display = 'flex';
-      aiToggleBtn.style.display = 'none';
-      voiceBtn.style.display = 'none';
-      pipBtn.style.display = 'none';
-      hudBtn.style.display = 'none';
-      stopBtn.style.display = 'none';
-    });
-
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(() => {}); });
-    }
-
-    updateSpeedLimitAuto();
-    startBtn.addEventListener('click', startTracking);
-    stopBtn.addEventListener('click', stopTracking);
+      initMap(currentLat, currentLon);
+      requestAnimationFrame(renderPipCanvas);
+      // Gọi xin quyền GPS
+      requestGPSPermission();
+    };
   </script>
 </body>
 </html>
