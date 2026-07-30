@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>SpeedAlert Pro - Sci-Fi HUD Edition</title>
+  <title>SpeedAlert Pro - Max Viewport Edition</title>
   
   <!-- PWA Meta Tags -->
   <link rel="manifest" href="manifest.json">
@@ -46,11 +46,11 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: space-between;
       width: 100%;
-      max-width: 390px;
+      max-width: 420px;
       height: 100%;
-      padding: 8px 12px;
+      padding: 6px 10px;
+      gap: 6px;
       transition: transform 0.3s ease;
     }
 
@@ -58,19 +58,29 @@
       transform: scaleX(-1);
     }
 
-    /* Top Bar */
+    /* BAR ĐỈNH TÍCH HỢP: GIỚI HẠN TỐC ĐỘ + ĐỒNG HỒ TỐC ĐỘ CẠNH NHAU */
     .top-bar {
       width: 100%;
       display: flex;
       justify-content: space-between;
       align-items: center;
       flex-shrink: 0;
-      height: 42px;
+      height: 52px;
+      background: rgba(15, 23, 42, 0.8);
+      border-radius: 12px;
+      padding: 4px 10px;
+      border: 1px solid #334155;
+    }
+
+    .top-left-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
 
     .speed-limit-sign {
-      width: 40px;
-      height: 40px;
+      width: 42px;
+      height: 42px;
       border-radius: 50%;
       background-color: #ffffff;
       border: 3.5px solid #ef4444;
@@ -78,7 +88,7 @@
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
       position: relative;
     }
 
@@ -89,7 +99,7 @@
     }
 
     #speedLimitValue {
-      font-size: 14px;
+      font-size: 15px;
       font-weight: 900;
       color: #0f172a;
       line-height: 1;
@@ -108,27 +118,53 @@
       display: none;
     }
 
-    .trap-indicator {
-      font-size: 9.5px;
-      font-weight: 700;
-      color: #38bdf8;
-      background: rgba(15, 23, 42, 0.6);
-      padding: 4px 8px;
-      border-radius: 20px;
-      border: 1px solid rgba(56, 189, 248, 0.2);
+    /* Đồng hồ tốc độ nhỏ gọn nằm cạnh Biển báo */
+    .compact-speed-gauge {
+      display: flex;
+      align-items: baseline;
+      gap: 3px;
     }
 
-    /* KHUNG VIEWPORT TÍCH HỢP (BẢN ĐỒ + CAMERA SCI-FI OVERLAY) */
+    .compact-speed-val {
+      font-size: 32px;
+      font-weight: 900;
+      color: #38bdf8;
+      line-height: 1;
+    }
+
+    .compact-speed-val.overspeed {
+      color: #ef4444;
+      animation: pulse 0.5s infinite alternate;
+    }
+
+    .compact-speed-unit {
+      font-size: 11px;
+      font-weight: 700;
+      color: #94a3b8;
+    }
+
+    .trap-indicator {
+      font-size: 9px;
+      font-weight: 700;
+      color: #38bdf8;
+      background: rgba(30, 41, 59, 0.9);
+      padding: 4px 8px;
+      border-radius: 20px;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      max-width: 140px;
+      text-align: right;
+    }
+
+    /* KHUNG VIEWPORT TỐI ĐA DIỆN TÍCH (BẢN ĐỒ + CAMERA) */
     .viewport-container {
       position: relative;
       width: 100%;
-      height: 190px; /* Tăng diện tích bản đồ */
+      flex: 1; /* Tự động mở rộng chiếm toàn bộ diện tích còn trống */
+      min-height: 220px;
       border-radius: 12px;
       overflow: hidden;
-      border: 1px solid rgba(56, 189, 248, 0.3);
-      box-shadow: 0 0 15px rgba(2, 132, 199, 0.2);
-      background: #000;
-      flex-shrink: 0;
+      border: 1px solid #334155;
+      background: #e5e7eb;
     }
 
     #aiVideo {
@@ -146,46 +182,36 @@
       width: 100%; height: 100%;
       z-index: 2;
       background: transparent;
-      transition: all 0.3s ease;
+      transition: all 0.2s ease;
     }
 
-    /* KHI BẬT AI CAMERA: BẢN ĐỒ CHUYỂN SANG DẠNG HOLOGRAPHIC NEON NỔI TRÊN CAMERA */
+    /* CHẾ ĐỘ BẬT CAMERA: BẢN ĐỒ BIẾN THÀNH NÉT VẼ & TÊN MÀU ĐEN NỔI TRÊN CAMERA */
     .viewport-container.camera-active #aiVideo {
       display: block;
     }
 
     .viewport-container.camera-active #mapContainer {
-      opacity: 0.75;
-      mix-blend-mode: screen; /* Lọc bỏ nền tối, giữ lại đường nét rực sáng đè lên camera */
-      filter: brightness(1.6) contrast(1.4);
+      /* Invert bản đồ tối thành nền sáng + đường đen, sau đó Multiply hòa trộn giữ lại nét đen đè lên camera */
+      filter: invert(100%) contrast(150%) brightness(110%);
+      mix-blend-mode: multiply;
+      opacity: 0.85;
     }
 
     .ai-overlay-status {
       position: absolute;
-      bottom: 4px;
-      left: 6px;
-      right: 6px;
+      bottom: 6px;
+      left: 8px;
+      right: 8px;
       z-index: 10;
-      background: rgba(2, 6, 23, 0.75);
+      background: rgba(2, 6, 23, 0.8);
       backdrop-filter: blur(4px);
       padding: 3px 8px;
       border-radius: 6px;
-      font-size: 9px;
+      font-size: 9.5px;
       color: #38bdf8;
       display: flex;
       justify-content: space-between;
       border: 1px solid rgba(56, 189, 248, 0.3);
-    }
-
-    /* Gauge Canvas Tối Ưu */
-    .gauge-wrapper {
-      position: relative;
-      width: 135px;
-      height: 135px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      flex-shrink: 0;
     }
 
     /* Bảng Cài Đặt Gọn Gàng */
@@ -205,7 +231,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 10px;
+      font-size: 9.5px;
       font-weight: 600;
       color: #94a3b8;
     }
@@ -216,7 +242,7 @@
       border: 1px solid #475569;
       border-radius: 4px;
       padding: 2px 4px;
-      font-size: 9.5px;
+      font-size: 9px;
       font-weight: 600;
       outline: none;
     }
@@ -224,9 +250,9 @@
     /* Hộp Trạng Thái */
     .status-box {
       background-color: #1e293b;
-      padding: 5px;
+      padding: 4px;
       border-radius: 6px;
-      font-size: 10.5px;
+      font-size: 10px;
       font-weight: 700;
       color: #38bdf8;
       text-align: center;
@@ -239,7 +265,7 @@
       background-color: #7f1d1d;
       color: #fca5a5;
       border-color: #ef4444;
-      animation: pulse 1s infinite alternate;
+      animation: pulse 0.8s infinite alternate;
     }
 
     .status-box.trap-alert {
@@ -251,15 +277,15 @@
 
     @keyframes pulse {
       from { opacity: 0.85; }
-      to { opacity: 1; transform: scale(1.01); }
+      to { opacity: 1; }
     }
 
-    /* CỤM NÚT ĐIỀU KHIỂN - LƯỚI GRID 2 CỘT TỐI ƯU KÍCH THƯỚC */
+    /* CỤM NÚT ĐIỀU KHIỂN - DẠNG LƯỚI GRID GỌN */
     .controls { 
       width: 100%; 
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 5px;
+      gap: 4px;
       flex-shrink: 0;
     }
 
@@ -268,22 +294,20 @@
       padding: 6px 4px;
       border: none;
       border-radius: 6px;
-      font-size: 9.5px;
+      font-size: 9px;
       font-weight: 800;
       cursor: pointer;
-      transition: all 0.2s;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 3px;
       text-transform: uppercase;
-      letter-spacing: 0.2px;
     }
 
     .btn-full {
       grid-column: span 2;
       padding: 8px 4px;
-      font-size: 11px;
+      font-size: 10.5px;
     }
 
     .btn-primary { background-color: #22c55e; color: #022c22; }
@@ -293,7 +317,7 @@
     .btn-hud { background-color: #7c3aed; color: #ffffff; }
     .btn-danger { background-color: #ef4444; color: #450a0a; }
 
-    #hiddenVideo { display: none; }
+    #hiddenVideo, #canvasGauge { display: none; }
 
     /* Modal Summary */
     .modal-overlay {
@@ -330,32 +354,34 @@
 <body>
 
   <div class="dashboard-container">
-    <!-- Thanh trạng thái đỉnh -->
+    <!-- Thanh trạng thái đỉnh: Biển báo + Đồng hồ tốc độ nằm cùng dòng -->
     <div class="top-bar">
-      <div class="speed-limit-sign">
-        <span class="sign-title">GIỚI HẠN</span>
-        <span id="speedLimitValue">--</span>
-        <span id="aiBadge" class="ai-badge">AI</span>
+      <div class="top-left-group">
+        <div class="speed-limit-sign">
+          <span class="sign-title">GIỚI HẠN</span>
+          <span id="speedLimitValue">--</span>
+          <span id="aiBadge" class="ai-badge">AI</span>
+        </div>
+        <div class="compact-speed-gauge">
+          <span id="speedValueText" class="compact-speed-val">0</span>
+          <span class="compact-speed-unit">km/h</span>
+        </div>
       </div>
       <div id="trapStatusIndicator" class="trap-indicator">🛡️ CAMERA PHẠT NGUỘI: BẬT</div>
     </div>
 
-    <!-- Khung Viewport chính gộp Bản đồ & AI Camera Viễn tưởng -->
+    <!-- Khung Viewport chính phóng to tối đa -->
     <div id="viewportContainer" class="viewport-container">
       <video id="aiVideo" playsinline autoplay muted></video>
       <div id="mapContainer"></div>
 
       <div id="aiOverlayStatus" class="ai-overlay-status" style="display: none;">
         <span>🤖 AI VISION: <b id="aiState">Đang quét...</b></span>
-        <span id="aiFps">Sci-Fi Overlay</span>
+        <span id="aiFps">Black-Line Overlay</span>
       </div>
     </div>
 
-    <!-- Đồng hồ tốc độ -->
-    <div class="gauge-wrapper">
-      <canvas id="speedGauge" width="135" height="135"></canvas>
-    </div>
-
+    <canvas id="canvasGauge" width="120" height="120"></canvas>
     <video id="hiddenVideo" autoplay playsinline muted></video>
     <canvas id="aiProcessCanvas" width="64" height="64" style="display: none;"></canvas>
 
@@ -392,7 +418,7 @@
 
     <div id="statusText" class="status-box">Sẵn sàng khởi động</div>
 
-    <!-- Cụm nút bấm dạng Grid tối ưu không gian -->
+    <!-- Cụm nút điều khiển dạng Grid -->
     <div class="controls">
       <button id="startBtn" class="btn btn-primary btn-full">🚗 BẮT ĐẦU LÁI XE & BẢN ĐỒ</button>
       <button id="aiToggleBtn" class="btn btn-ai" style="display: none;">📷 AI QUÉT BIỂN</button>
@@ -440,7 +466,6 @@
     function disableBackgroundMode() { silentAudioNode.pause(); silentAudioNode.currentTime = 0; }
 
     // --- TRẠNG THÁI ---
-    const MAX_SPEED_DISPLAY = 120;
     let SPEED_LIMIT = 60;
     let watchId = null;
     let wakeLock = null;
@@ -460,6 +485,7 @@
     // --- LEAFLET & AI STATE ---
     let leafletMap = null;
     let vehicleMarker = null;
+    let tileLayerInstance = null;
     let isAiActive = false;
     let aiVideoStream = null;
     let aiIntervalId = null;
@@ -471,8 +497,7 @@
     let isVoiceActive = false;
 
     // --- DOM ELEMENTS ---
-    const canvas = document.getElementById('speedGauge');
-    const ctx = canvas.getContext('2d');
+    const speedValueText = document.getElementById('speedValueText');
     const hiddenVideo = document.getElementById('hiddenVideo');
     const speedLimitEl = document.getElementById('speedLimitValue');
     const statusTextEl = document.getElementById('statusText');
@@ -532,7 +557,7 @@
           statusTextEl.classList.remove('overspeed');
         }
       }
-      drawGauge(currentSpeed);
+      updateSpeedDisplay(currentSpeed);
     }
 
     // --- LEAFLET MAP ---
@@ -544,22 +569,23 @@
         attributionControl: false
       }).setView([lat, lon], 16);
 
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      // Mặc định bản đồ sáng màu (Light Mode) khi xem không có camera
+      tileLayerInstance = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         maxZoom: 19,
         subdomains: 'abcd'
       }).addTo(leafletMap);
 
       const vehicleIcon = L.divIcon({
         className: 'custom-vehicle-marker',
-        html: '<div style="background:#0284c7; width:14px; height:14px; border-radius:50%; border:2px solid #38bdf8; box-shadow:0 0 10px #38bdf8;"></div>',
-        iconSize: [14, 14]
+        html: '<div style="background:#0284c7; width:16px; height:16px; border-radius:50%; border:2px solid #ffffff; box-shadow:0 0 8px rgba(0,0,0,0.5);"></div>',
+        iconSize: [16, 16]
       });
       vehicleMarker = L.marker([lat, lon], { icon: vehicleIcon }).addTo(leafletMap);
 
       SPEED_TRAPS_DB.forEach(trap => {
         const trapIcon = L.divIcon({
           className: 'custom-trap-marker',
-          html: '<div style="background:#ef4444; width:12px; height:12px; border-radius:50%; border:2px solid #ffffff; box-shadow:0 0 8px #ef4444;"></div>',
+          html: '<div style="background:#ef4444; width:12px; height:12px; border-radius:50%; border:2px solid #ffffff; box-shadow:0 0 6px #ef4444;"></div>',
           iconSize: [12, 12]
         });
         const marker = L.marker([trap.lat, trap.lon], { icon: trapIcon }).addTo(leafletMap);
@@ -653,7 +679,7 @@
 
     voiceBtn.addEventListener('click', toggleVoiceAssistant);
 
-    // --- TENSORFLOW.JS CAMERA AI SCI-FI ---
+    // --- TENSORFLOW.JS CAMERA AI ---
     async function loadTensorFlowModel() {
       aiStateEl.innerText = "Tải AI...";
       try {
@@ -677,6 +703,11 @@
         });
         aiVideo.srcObject = aiVideoStream;
         await aiVideo.play();
+
+        // Chuyển bản đồ sang dạng Nét Đen đè lên Camera
+        if (tileLayerInstance) {
+          tileLayerInstance.setUrl('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png');
+        }
 
         viewportContainer.classList.add('camera-active');
         aiOverlayStatus.style.display = 'flex';
@@ -702,6 +733,12 @@
         aiVideoStream = null;
       }
       isAiActive = false;
+
+      // Trả lại bản đồ Sáng màu bình thường
+      if (tileLayerInstance) {
+        tileLayerInstance.setUrl('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png');
+      }
+
       viewportContainer.classList.remove('camera-active');
       aiOverlayStatus.style.display = 'none';
       aiBadgeEl.style.display = 'none';
@@ -745,39 +782,16 @@
 
     aiToggleBtn.addEventListener('click', () => { if (isAiActive) stopAICamera(); else startAICamera(); });
 
-    // --- ĐỒNG HỒ TỐC ĐỘ CANVAS ---
-    function drawGauge(speed) {
-      const width = canvas.width, height = canvas.height;
-      const cx = width / 2, cy = height / 2, radius = 48;
-
-      ctx.fillStyle = '#020617';
-      ctx.fillRect(0, 0, width, height);
-
-      const startAngle = 0.75 * Math.PI, endAngle = 2.25 * Math.PI;
-
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius, startAngle, endAngle);
-      ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 7; ctx.lineCap = 'round'; ctx.stroke();
-
-      const progress = Math.min(Math.max(speed, 0), MAX_SPEED_DISPLAY) / MAX_SPEED_DISPLAY;
-      const currentAngle = startAngle + progress * (endAngle - startAngle);
+    // --- CẬP NHẬT HIỂN THỊ TỐC ĐỘ ---
+    function updateSpeedDisplay(speed) {
+      speedValueText.innerText = speed.toString();
       const tolerance = parseInt(toleranceSelect.value);
 
-      if (progress > 0) {
-        ctx.beginPath();
-        ctx.arc(cx, cy, radius, startAngle, currentAngle);
-        ctx.strokeStyle = (SPEED_LIMIT > 0 && speed > (SPEED_LIMIT + tolerance)) ? '#ef4444' : '#38bdf8';
-        ctx.lineWidth = 7; ctx.lineCap = 'round'; ctx.stroke();
+      if (SPEED_LIMIT > 0 && speed > (SPEED_LIMIT + tolerance)) {
+        speedValueText.classList.add('overspeed');
+      } else {
+        speedValueText.classList.remove('overspeed');
       }
-
-      ctx.fillStyle = (SPEED_LIMIT > 0 && speed > (SPEED_LIMIT + tolerance)) ? '#ef4444' : '#ffffff';
-      ctx.font = '900 30px system-ui, sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(speed.toString(), cx, cy - 3);
-
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = 'bold 9.5px system-ui, sans-serif';
-      ctx.fillText('km/h', cx, cy + 20);
     }
 
     function getSmoothedSpeed(rawSpeed) {
@@ -837,8 +851,14 @@
         if (document.pictureInPictureElement) {
           await document.exitPictureInPicture();
         } else {
+          const canvasG = document.getElementById('canvasGauge');
+          const ctxG = canvasG.getContext('2d');
+          ctxG.fillStyle = '#020617'; ctxG.fillRect(0,0,120,120);
+          ctxG.fillStyle = '#38bdf8'; ctxG.font = 'bold 40px sans-serif'; ctxG.textAlign = 'center';
+          ctxG.fillText(currentSpeed.toString(), 60, 70);
+
           if (!hiddenVideo.srcObject) {
-            hiddenVideo.srcObject = canvas.captureStream(30);
+            hiddenVideo.srcObject = canvasG.captureStream(30);
             await hiddenVideo.play();
           }
           await hiddenVideo.requestPictureInPicture();
@@ -899,7 +919,7 @@
 
           currentSpeed = getSmoothedSpeed(position.coords.speed);
           if (currentSpeed > tripMaxSpeed) tripMaxSpeed = currentSpeed;
-          drawGauge(currentSpeed);
+          updateSpeedDisplay(currentSpeed);
 
           const tolerance = parseInt(toleranceSelect.value);
           const effectiveLimit = SPEED_LIMIT + tolerance;
@@ -949,7 +969,7 @@
 
     closeModalBtn.addEventListener('click', () => {
       tripModal.style.display = 'none';
-      currentSpeed = 0; drawGauge(0); updateSpeedLimitFromRules();
+      currentSpeed = 0; updateSpeedDisplay(0); updateSpeedLimitFromRules();
       leafletMap = null;
       startBtn.style.display = 'flex';
       aiToggleBtn.style.display = 'none';
