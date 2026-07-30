@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>SpeedAlert Pro - Sci-Fi Overlay Edition</title>
+  <title>SpeedAlert Pro - Sci-Fi Camera Overlay</title>
   
   <!-- PWA Meta Tags -->
   <link rel="manifest" href="manifest.json">
@@ -70,6 +70,7 @@
       border-radius: 10px;
       padding: 2px 8px;
       border: 1px solid #334155;
+      z-index: 50;
     }
 
     .top-left-group {
@@ -180,16 +181,7 @@
       top: 0; left: 0;
       width: 100%; height: 100%;
       z-index: 2;
-      background: transparent !important;
       transition: all 0.2s ease;
-    }
-
-    /* FIX LỖI NỀN LEAFLET CHE CAMERA */
-    #mapContainer .leaflet-container,
-    #mapContainer .leaflet-tile-container,
-    #mapContainer .leaflet-tile,
-    #mapContainer .leaflet-map-pane {
-      background: transparent !important;
     }
 
     /* NÚT CHUYỂN CHẾ ĐỘ NGÀY / ĐÊM Ở GÓC PHẢI BẢN ĐỒ */
@@ -218,15 +210,18 @@
       transform: scale(0.9);
     }
 
-    /* ĐƯỜNG NÉT ĐEN NỔI TRÊN BACKGROUND CAMERA (SCI-FI OVERLAY) */
+    /* ĐƯỜNG NÉT ĐEN & TÊN ĐƯỜNG NỔI BẬT ĐÈ TRÊN CAMERA */
     .viewport-container.camera-active #aiVideo {
       display: block;
     }
 
     .viewport-container.camera-active #mapContainer {
-      mix-blend-mode: multiply;
-      filter: grayscale(100%) contrast(350%) brightness(110%);
-      opacity: 0.95;
+      opacity: 0.8;
+      pointer-events: none;
+    }
+
+    .viewport-container.camera-active #mapContainer .leaflet-tile {
+      filter: contrast(300%) brightness(80%) grayscale(100%);
     }
 
     .ai-overlay-status {
@@ -488,7 +483,7 @@
     const MAP_TILES = {
       darkSciFi: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
       lightSciFi: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-      lightOverlay: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+      cameraOverlay: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
     };
 
     // --- SILENT AUDIO HACK ---
@@ -579,9 +574,9 @@
       if (!tileLayerInstance) return;
 
       if (isAiActive) {
-        // Bật Camera: Ẩn nút chọn theme, dùng bản đồ Overlay nét cao
+        // Bật Camera: Ẩn nút chọn theme, dùng bản đồ tương phản nét đậm đè lên camera
         mapThemeBtn.style.display = 'none';
-        tileLayerInstance.setUrl(MAP_TILES.lightOverlay);
+        tileLayerInstance.setUrl(MAP_TILES.cameraOverlay);
       } else {
         // Tắt Camera: Hiện nút chọn theme
         mapThemeBtn.style.display = 'flex';
@@ -651,7 +646,7 @@
         attributionControl: false
       }).setView([lat, lon], 16);
 
-      const initialTileUrl = isAiActive ? MAP_TILES.lightOverlay : (isDarkMode ? MAP_TILES.darkSciFi : MAP_TILES.lightSciFi);
+      const initialTileUrl = isAiActive ? MAP_TILES.cameraOverlay : (isDarkMode ? MAP_TILES.darkSciFi : MAP_TILES.lightSciFi);
       
       tileLayerInstance = L.tileLayer(initialTileUrl, {
         maxZoom: 19,
@@ -660,15 +655,15 @@
 
       const vehicleIcon = L.divIcon({
         className: 'custom-vehicle-marker',
-        html: '<div style="background:#38bdf8; width:14px; height:14px; border-radius:50%; border:2px solid #ffffff; box-shadow:0 0 10px #38bdf8;"></div>',
-        iconSize: [14, 14]
+        html: '<div style="background:#ef4444; width:16px; height:16px; border-radius:50%; border:3px solid #ffffff; box-shadow:0 0 10px #ef4444;"></div>',
+        iconSize: [16, 16]
       });
       vehicleMarker = L.marker([lat, lon], { icon: vehicleIcon }).addTo(leafletMap);
 
       SPEED_TRAPS_DB.forEach(trap => {
         const trapIcon = L.divIcon({
           className: 'custom-trap-marker',
-          html: '<div style="background:#ef4444; width:12px; height:12px; border-radius:50%; border:2px solid #ffffff; box-shadow:0 0 8px #ef4444;"></div>',
+          html: '<div style="background:#f59e0b; width:12px; height:12px; border-radius:50%; border:2px solid #ffffff; box-shadow:0 0 8px #f59e0b;"></div>',
           iconSize: [12, 12]
         });
         const marker = L.marker([trap.lat, trap.lon], { icon: trapIcon }).addTo(leafletMap);
