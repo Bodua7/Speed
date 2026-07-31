@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>SpeedAlert Pro - Fixed PiP Layout</title>
+  <title>SpeedAlert Pro - Fixed Layout & Voice</title>
 
   <meta name="theme-color" content="#020617">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -71,14 +71,14 @@
     .gps-dot { width: 7px; height: 7px; border-radius: 50%; background: #10b981; display: inline-block; }
     .gps-dot.poor { background: #ef4444; }
 
-    /* Viewport Container */
+    /* Viewport Container (Sửa hiển thị camera tại màn hình chính) */
     .viewport-container {
       position: relative; width: 100%; flex: 1; min-height: 180px;
       border-radius: 12px; overflow: hidden; border: 1px solid #1e293b; background: #0f172a;
     }
     
-    #aiVideo { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; opacity: 0.6; display: none; }
-    #mapContainer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; }
+    #mapContainer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+    #aiVideo { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 3; opacity: 1; display: none; }
 
     .ai-scanner-overlay {
       position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -171,8 +171,9 @@
     </div>
 
     <div id="viewportContainer" class="viewport-container">
-      <video id="aiVideo" playsinline autoplay muted></video>
       <div id="mapContainer"></div>
+      <!-- Camera giờ nằm đè lên bản đồ trong khung chính -->
+      <video id="aiVideo" playsinline autoplay muted></video>
 
       <div class="ai-scanner-overlay" id="aiScannerOverlay">
         <div class="ai-scanner-line"></div>
@@ -217,7 +218,7 @@
     </div>
   </div>
 
-  <!-- FIX TRỰC TIẾP LỖI PIP KHOẢNG TRỐNG NỀN: ÉP TỈ LỆ VÀ NỀN VIDEO NỐI PIP -->
+  <!-- PIP CANVAS CHỈ VẼ TỐC ĐỘ VÀ TỐC ĐỘ GIỚI HẠN -->
   <canvas id="pipCanvas" width="400" height="240" style="display:none;"></canvas>
   <video id="pipHiddenVideo" autoplay muted playsinline style="position:fixed; top:-9999px; left:-9999px; width:400px; height:240px; object-fit:cover;"></video>
 
@@ -232,6 +233,7 @@
     let leafletMap = null, currentTileLayer = null, vehicleMarker = null;
     let isDarkMode = true, isCameraOn = false, isSoundOn = true, isHudOn = false;
     let cameraStream = null, gpsWatchId = null, simInterval = null;
+    let recognition = null; // Trình nhận diện giọng nói
 
     const dashContainer = document.getElementById('dashContainer');
     const speedValueText = document.getElementById('speedValueText');
@@ -385,36 +387,29 @@
     }
 
     // =========================================================
-    // RENDER PIP CANVAS TOÀN KHUNG HÌNH (KHÔNG VIỀN ĐEN BÊN DƯỚI)
+    // PIP PIP CANVAS: CHỈ HIỂN THỊ TỐC ĐỘ VÀ TỐC ĐỘ GIỚI HẠN
     // =========================================================
     function renderPipCanvas() {
       const ctx = pipCanvas.getContext('2d');
       const w = pipCanvas.width;  // 400
       const h = pipCanvas.height; // 240
 
-      // 1. Phủ toàn bộ Canvas bằng màu nền nguyên khối
+      // 1. Phủ màu nền đơn sắc
       const isOverspeed = currentSpeed > speedLimit;
       ctx.fillStyle = isOverspeed ? '#450a0a' : '#020617';
       ctx.fillRect(0, 0, w, h);
 
-      // 2. Render camera nếu có
-      if (isCameraOn && aiVideo.readyState >= 2) {
-        ctx.drawImage(aiVideo, 0, 0, w, h);
-        ctx.fillStyle = 'rgba(2, 6, 23, 0.7)';
-        ctx.fillRect(0, 0, w, h);
-      }
-
-      // 3. Khung viền mỏng bo theo viền ngoài của Canvas
+      // 2. Vẽ viền nổi bật
       ctx.strokeStyle = isOverspeed ? '#ef4444' : '#0284c7';
       ctx.lineWidth = 6;
       ctx.strokeRect(0, 0, w, h);
 
-      // 4. Căn giữa văn bản tuyệt đối
+      // 3. Căn giữa chữ
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
       if (isOverspeed) {
-        // --- CẢNH BÁO TỐC ĐỘ ---
+        // --- CHẾ ĐỘ QUÁ TỐC ĐỘ ---
         ctx.fillStyle = '#ef4444';
         ctx.font = '900 80px -apple-system, Roboto, sans-serif';
         ctx.fillText(`${currentSpeed}`, w / 2 - 30, h / 2 - 10);
@@ -424,10 +419,10 @@
 
         ctx.fillStyle = '#fca5a5';
         ctx.font = '800 20px -apple-system, Roboto, sans-serif';
-        ctx.fillText(`🚨 CẢNH BÁO: QUÁ ${speedLimit} KM/H!`, w / 2, h - 30);
+        ctx.fillText(`🚨 QUÁ TỐC ĐỘ: ${speedLimit} KM/H!`, w / 2, h - 35);
 
       } else {
-        // --- CHẾ ĐỘ BÌNH THƯỜNG ---
+        // --- CHẾ ĐỘ THƯỜNG ---
         ctx.fillStyle = '#94a3b8';
         ctx.font = '800 18px -apple-system, Roboto, sans-serif';
         ctx.fillText(`GIỚI HẠN: ${speedLimit} KM/H`, w / 2, 35);
@@ -441,13 +436,15 @@
         ctx.fillText(`km/h`, w / 2 + 90, h / 2 + 15);
       }
 
-      // Reset cấu hình vẽ
       ctx.textAlign = 'start';
       ctx.textBaseline = 'alphabetic';
 
       requestAnimationFrame(renderPipCanvas);
     }
 
+    // =========================================================
+    // TÍNH NĂNG CAMERA TRÊN MÀN HÌNH CHÍNH
+    // =========================================================
     async function toggleCamera() {
       const aiBtn = document.getElementById('aiToggleBtn');
       if (isCameraOn) {
@@ -494,9 +491,58 @@
       }
     }
 
-    document.getElementById('aiToggleBtn').onclick = toggleCamera;
+    // =========================================================
+    // FIX LỖI GIỌNG NÓI (WEB SPEECH RECOGNITION API)
+    // =========================================================
+    function initVoiceRecognition() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        statusTextEl.innerText = "⚠️ Trình duyệt không hỗ trợ nhận diện giọng nói!";
+        return null;
+      }
 
-    document.getElementById('pipBtn').onclick = async function() {
+      const rec = new SpeechRecognition();
+      rec.lang = 'vi-VN';
+      rec.continuous = false;
+      rec.interimResults = false;
+
+      rec.onstart = function() {
+        statusTextEl.innerText = "🎙️ ĐANG LẮNG NGHE... HÃY NÓI CÂU LỆNH!";
+        document.getElementById('chatVoiceBtn').style.backgroundColor = '#ef4444';
+      };
+
+      rec.onresult = function(event) {
+        const text = event.results[0][0].transcript.toLowerCase();
+        statusTextEl.innerText = `🗣️ Bạn nói: "${text}"`;
+        
+        // Xử lý các câu lệnh giọng nói cơ bản
+        if (text.includes("bật camera") || text.includes("mở camera")) {
+          if (!isCameraOn) toggleCamera();
+        } else if (text.includes("tắt camera")) {
+          if (isCameraOn) toggleCamera();
+        } else if (text.includes("bật pip") || text.includes("mở pip") || text.includes("cửa sổ nổi")) {
+          togglePip();
+        } else if (text.includes("nền sáng") || text.includes("chế độ sáng")) {
+          if (isDarkMode) toggleTheme();
+        } else if (text.includes("nền tối") || text.includes("chế độ tối")) {
+          if (!isDarkMode) toggleTheme();
+        } else if (text.includes("dừng") || text.includes("tổng kết")) {
+          document.getElementById('stopBtn').click();
+        }
+      };
+
+      rec.onerror = function(event) {
+        statusTextEl.innerText = "⚠️ Không thể nhận diện giọng nói (" + event.error + ")";
+      };
+
+      rec.onend = function() {
+        document.getElementById('chatVoiceBtn').style.backgroundColor = '#d97706';
+      };
+
+      return rec;
+    }
+
+    async function togglePip() {
       try {
         if (document.pictureInPictureElement) {
           await document.exitPictureInPicture();
@@ -507,24 +553,30 @@
           await pipHiddenVideo.requestPictureInPicture();
         }
       } catch (err) {
-        alert('Trình duyệt không hỗ trợ cửa sổ nổi PiP hoặc tính năng này bị vô hiệu hóa!');
+        alert('Trình duyệt không hỗ trợ cửa sổ nổi PiP!');
       }
-    };
+    }
 
-    document.getElementById('hudBtn').onclick = function() {
-      isHudOn = !isHudOn;
-      dashContainer.classList.toggle('hud-mode', isHudOn);
-      this.style.backgroundColor = isHudOn ? '#ec4899' : '#7c3aed';
-    };
-
-    document.getElementById('themeToggleBtn').onclick = function() {
+    function toggleTheme() {
       isDarkMode = !isDarkMode;
       if (leafletMap && currentTileLayer) {
         leafletMap.removeLayer(currentTileLayer);
         currentTileLayer = L.tileLayer(isDarkMode ? TILE_DARK : TILE_LIGHT, { maxZoom: 19, subdomains: 'abcd' }).addTo(leafletMap);
       }
-      this.innerText = isDarkMode ? "🌙 NỀN TỐI" : "☀️ NỀN SÁNG";
-      this.style.backgroundColor = isDarkMode ? "#0284c7" : "#eab308";
+      const themeBtn = document.getElementById('themeToggleBtn');
+      themeBtn.innerText = isDarkMode ? "🌙 NỀN TỐI" : "☀️ NỀN SÁNG";
+      themeBtn.style.backgroundColor = isDarkMode ? "#0284c7" : "#eab308";
+    }
+
+    // Sự kiện nút
+    document.getElementById('aiToggleBtn').onclick = toggleCamera;
+    document.getElementById('pipBtn').onclick = togglePip;
+    document.getElementById('themeToggleBtn').onclick = toggleTheme;
+
+    document.getElementById('hudBtn').onclick = function() {
+      isHudOn = !isHudOn;
+      dashContainer.classList.toggle('hud-mode', isHudOn);
+      this.style.backgroundColor = isHudOn ? '#ec4899' : '#7c3aed';
     };
 
     document.getElementById('soundToggleBtn').onclick = function() {
@@ -534,7 +586,16 @@
     };
 
     document.getElementById('chatVoiceBtn').onclick = function() {
-      alert("Tính năng Lệnh giọng nói đang sẵn sàng kết nối!");
+      if (!recognition) {
+        recognition = initVoiceRecognition();
+      }
+      if (recognition) {
+        try {
+          recognition.start();
+        } catch(e) {
+          recognition.stop();
+        }
+      }
     };
 
     document.getElementById('stopBtn').onclick = function() {
