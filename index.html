@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>SpeedAlert Pro - Fixed GPS & Controls</title>
+  <title>SpeedAlert Pro - Fixed PiP Layout</title>
 
   <meta name="theme-color" content="#020617">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -217,8 +217,9 @@
     </div>
   </div>
 
-  <canvas id="pipCanvas" width="640" height="360" style="display:none;"></canvas>
-  <video id="pipHiddenVideo" autoplay muted playsinline style="display:none;"></video>
+  <!-- FIX TRỰC TIẾP LỖI PIP KHOẢNG TRỐNG NỀN: ÉP TỈ LỆ VÀ NỀN VIDEO NỐI PIP -->
+  <canvas id="pipCanvas" width="400" height="240" style="display:none;"></canvas>
+  <video id="pipHiddenVideo" autoplay muted playsinline style="position:fixed; top:-9999px; left:-9999px; width:400px; height:240px; object-fit:cover;"></video>
 
   <script>
     let currentSpeed = 0, speedLimit = 60, maxSpeed = 0;
@@ -245,7 +246,6 @@
     const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
     const TILE_LIGHT = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 
-    // BẮT LỖI GPS VÀ XỬ LÝ KHÔNG LÀM TREO ỨNG DỤNG
     function requestGPSPermission() {
       if (!window.isSecureContext && location.protocol !== 'https:' && location.hostname !== 'localhost') {
         gpsAccText.innerText = "Yêu cầu HTTPS";
@@ -297,11 +297,9 @@
       );
     }
 
-    // Chế độ mô phỏng chạy thử nếu GPS hoàn toàn bị chặn
     function startSimulationMode() {
       if (simInterval) return;
       simInterval = setInterval(() => {
-        // Tạo tốc độ giả định từ 30 đến 75 km/h
         const mockSpeed = Math.floor(Math.random() * 45) + 30;
         currentSpeed = mockSpeed;
         if (currentSpeed > maxSpeed) maxSpeed = currentSpeed;
@@ -386,39 +384,66 @@
       }
     }
 
-    // Render PIP Canvas liên tục
+    // =========================================================
+    // RENDER PIP CANVAS TOÀN KHUNG HÌNH (KHÔNG VIỀN ĐEN BÊN DƯỚI)
+    // =========================================================
     function renderPipCanvas() {
       const ctx = pipCanvas.getContext('2d');
-      ctx.fillStyle = '#020617';
-      ctx.fillRect(0, 0, 640, 360);
+      const w = pipCanvas.width;  // 400
+      const h = pipCanvas.height; // 240
 
+      // 1. Phủ toàn bộ Canvas bằng màu nền nguyên khối
+      const isOverspeed = currentSpeed > speedLimit;
+      ctx.fillStyle = isOverspeed ? '#450a0a' : '#020617';
+      ctx.fillRect(0, 0, w, h);
+
+      // 2. Render camera nếu có
       if (isCameraOn && aiVideo.readyState >= 2) {
-        ctx.drawImage(aiVideo, 0, 0, 640, 360);
+        ctx.drawImage(aiVideo, 0, 0, w, h);
+        ctx.fillStyle = 'rgba(2, 6, 23, 0.7)';
+        ctx.fillRect(0, 0, w, h);
       }
 
-      const isOverspeed = currentSpeed > speedLimit;
-
-      ctx.fillStyle = isOverspeed ? 'rgba(127, 29, 29, 0.95)' : 'rgba(15, 23, 42, 0.9)';
-      ctx.fillRect(20, 20, 600, 160);
+      // 3. Khung viền mỏng bo theo viền ngoài của Canvas
       ctx.strokeStyle = isOverspeed ? '#ef4444' : '#0284c7';
-      ctx.lineWidth = 4;
-      ctx.strokeRect(20, 20, 600, 160);
+      ctx.lineWidth = 6;
+      ctx.strokeRect(0, 0, w, h);
 
-      ctx.fillStyle = isOverspeed ? '#ef4444' : '#38bdf8';
-      ctx.font = '900 68px -apple-system, Roboto, sans-serif';
-      ctx.fillText(`${currentSpeed} km/h`, 40, 95);
-
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 32px -apple-system, Roboto, sans-serif';
-      ctx.fillText(`GIỚI HẠN: ${speedLimit} km/h`, 40, 150);
+      // 4. Căn giữa văn bản tuyệt đối
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
 
       if (isOverspeed) {
+        // --- CẢNH BÁO TỐC ĐỘ ---
         ctx.fillStyle = '#ef4444';
-        ctx.fillRect(20, 205, 600, 110);
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '900 30px -apple-system, Roboto, sans-serif';
-        ctx.fillText(`🚨 VƯỢT QUÁ TỐC ĐỘ!`, 60, 275);
+        ctx.font = '900 80px -apple-system, Roboto, sans-serif';
+        ctx.fillText(`${currentSpeed}`, w / 2 - 30, h / 2 - 10);
+
+        ctx.font = 'bold 24px -apple-system, Roboto, sans-serif';
+        ctx.fillText(`km/h`, w / 2 + 85, h / 2 - 10);
+
+        ctx.fillStyle = '#fca5a5';
+        ctx.font = '800 20px -apple-system, Roboto, sans-serif';
+        ctx.fillText(`🚨 CẢNH BÁO: QUÁ ${speedLimit} KM/H!`, w / 2, h - 30);
+
+      } else {
+        // --- CHẾ ĐỘ BÌNH THƯỜNG ---
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '800 18px -apple-system, Roboto, sans-serif';
+        ctx.fillText(`GIỚI HẠN: ${speedLimit} KM/H`, w / 2, 35);
+
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = '900 90px -apple-system, Roboto, sans-serif';
+        ctx.fillText(`${currentSpeed}`, w / 2 - 35, h / 2 + 10);
+
+        ctx.fillStyle = '#64748b';
+        ctx.font = 'bold 26px -apple-system, Roboto, sans-serif';
+        ctx.fillText(`km/h`, w / 2 + 90, h / 2 + 15);
       }
+
+      // Reset cấu hình vẽ
+      ctx.textAlign = 'start';
+      ctx.textBaseline = 'alphabetic';
 
       requestAnimationFrame(renderPipCanvas);
     }
@@ -448,7 +473,7 @@
           aiBtn.innerText = '📷 TẮT CAMERA';
           aiBtn.style.backgroundColor = '#e11d48';
         } catch (e) {
-          alert("Không thể mở Camera. Lỗi: " + e.message + "\nHãy cấp quyền Camera trong cài đặt trình duyệt!");
+          alert("Không thể mở Camera. Lỗi: " + e.message);
         }
       }
     }
@@ -469,7 +494,6 @@
       }
     }
 
-    // ĐĂNG KÝ SỰ KIỆN CHO CÁC NÚT (ĐẢM BẢO LUÔN HOẠT ĐỘNG)
     document.getElementById('aiToggleBtn').onclick = toggleCamera;
 
     document.getElementById('pipBtn').onclick = async function() {
@@ -483,7 +507,7 @@
           await pipHiddenVideo.requestPictureInPicture();
         }
       } catch (err) {
-        alert('Trình duyệt không hỗ trợ cửa sổ nổi PiP hoặc tính năng này bị vô hiệu hóa trên khung xem trước!');
+        alert('Trình duyệt không hỗ trợ cửa sổ nổi PiP hoặc tính năng này bị vô hiệu hóa!');
       }
     };
 
@@ -510,7 +534,7 @@
     };
 
     document.getElementById('chatVoiceBtn').onclick = function() {
-      alert("Tính năng Lệnh giọng nói đang sẵn sàng kết nối với Micro!");
+      alert("Tính năng Lệnh giọng nói đang sẵn sàng kết nối!");
     };
 
     document.getElementById('stopBtn').onclick = function() {
@@ -537,7 +561,6 @@
       tripStartTime = Date.now();
       initMap(currentLat, currentLon);
       requestAnimationFrame(renderPipCanvas);
-      // Gọi xin quyền GPS
       requestGPSPermission();
     };
   </script>
