@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>SpeedAlert Pro - Fixed Bugs</title>
+  <title>SpeedAlert Pro - Camera & Map Overlay Fixed</title>
 
   <meta name="theme-color" content="#020617">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -21,12 +21,6 @@
       0% { box-shadow: inset 0 0 0px #ef4444; border-color: #1e293b; }
       50% { box-shadow: inset 0 0 25px #ef4444; border-color: #ef4444; }
       100% { box-shadow: inset 0 0 0px #ef4444; border-color: #1e293b; }
-    }
-
-    @keyframes scanLine {
-      0% { top: 10%; opacity: 0.3; }
-      50% { top: 80%; opacity: 1; }
-      100% { top: 10%; opacity: 0.3; }
     }
 
     .dashboard-container {
@@ -71,24 +65,25 @@
     .gps-dot { width: 7px; height: 7px; border-radius: 50%; background: #10b981; display: inline-block; }
     .gps-dot.poor { background: #ef4444; }
 
-    /* Viewport Container */
+    /* Viewport Container & Camera Display Fix */
     .viewport-container {
       position: relative; width: 100%; flex: 1; min-height: 180px;
-      border-radius: 12px; overflow: hidden; border: 1px solid #1e293b; background: #0f172a;
+      border-radius: 12px; overflow: hidden; border: 1px solid #1e293b; background: #000000;
     }
     
-    #aiVideo { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; opacity: 0.6; display: none; }
-    #mapContainer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; }
-
-    .ai-scanner-overlay {
-      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      width: 130px; height: 130px; border: 2px dashed #0284c7; border-radius: 12px;
-      z-index: 5; pointer-events: none; display: none; justify-content: center; align-items: center;
-      box-shadow: 0 0 15px rgba(2, 132, 199, 0.3);
+    #aiVideo {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      object-fit: cover; z-index: 1; opacity: 1; display: none;
     }
-    .ai-scanner-line {
-      position: absolute; width: 90%; height: 2px; background: #38bdf8;
-      box-shadow: 0 0 8px #38bdf8; animation: scanLine 2s infinite ease-in-out;
+
+    #mapContainer {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      z-index: 2; transition: opacity 0.3s ease; background: transparent !important;
+    }
+
+    /* Đổi độ trong suốt của bản đồ khi camera bật để hiển thị nổi đường đi trên nền camera */
+    .viewport-container.camera-on #mapContainer .leaflet-tile-container {
+      opacity: 0.55;
     }
 
     /* Settings Panel */
@@ -171,12 +166,9 @@
     </div>
 
     <div id="viewportContainer" class="viewport-container">
+      <!-- Camera hiển thị trung thực bên dưới bản đồ -->
       <video id="aiVideo" playsinline autoplay muted></video>
       <div id="mapContainer"></div>
-
-      <div class="ai-scanner-overlay" id="aiScannerOverlay">
-        <div class="ai-scanner-line"></div>
-      </div>
     </div>
 
     <div class="settings-panel-compact">
@@ -232,14 +224,15 @@
     let cameraStream = null, gpsWatchId = null, pipAnimFrame = null;
 
     const dashContainer = document.getElementById('dashContainer');
+    const viewportContainer = document.getElementById('viewportContainer');
     const speedValueText = document.getElementById('speedValueText');
     const statusTextEl = document.getElementById('statusText');
     const aiVideo = document.getElementById('aiVideo');
     const pipCanvas = document.getElementById('pipCanvas');
     const gpsAccText = document.getElementById('gpsAccText');
     const gpsDot = document.getElementById('gpsDot');
-    const aiScannerOverlay = document.getElementById('aiScannerOverlay');
 
+    // Tiles bản đồ tối giản CartoDB hiển thị tên đường và nét kẻ cực rõ
     const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
     const TILE_LIGHT = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 
@@ -309,7 +302,6 @@
       smoothedSpeed = (rawSpeedKmh < 1.8) ? 0 : (alpha * rawSpeedKmh) + ((1 - alpha) * smoothedSpeed);
       currentSpeed = Math.round(smoothedSpeed);
 
-      // FIX BUG DRIFT GPS: Chỉ cộng dồn quãng đường khi thực sự đang di chuyển (> 2 km/h)
       if (lastLat !== null && lastLon !== null && currentSpeed > 2) {
         const dMeters = calculateDistance(lastLat, lastLon, lat, lon);
         if (dMeters > 1.0 && accuracy <= 40) totalDistanceKm += (dMeters / 1000);
@@ -353,19 +345,15 @@
       }
     }
 
-    // FIX BUG MEMORY LEAK: Dùng requestAnimationFrame thay vì setInterval
+    // PIP CANVAS: CHỈ HIỂN THỊ THÔNG SỐ, KHÔNG HIỂN THỊ CAMERA
     function renderPipCanvas() {
       const ctx = pipCanvas.getContext('2d');
       ctx.fillStyle = '#020617';
       ctx.fillRect(0, 0, 640, 360);
 
-      if (isCameraOn && aiVideo.readyState >= 2) {
-        ctx.drawImage(aiVideo, 0, 0, 640, 360);
-      }
-
       const isOverspeed = currentSpeed > speedLimit;
 
-      ctx.fillStyle = isOverspeed ? 'rgba(127, 29, 29, 0.95)' : 'rgba(15, 23, 42, 0.9)';
+      ctx.fillStyle = isOverspeed ? 'rgba(127, 29, 29, 0.95)' : 'rgba(15, 23, 42, 0.95)';
       ctx.fillRect(20, 20, 600, 160);
       ctx.strokeStyle = isOverspeed ? '#ef4444' : '#0284c7';
       ctx.lineWidth = 4;
@@ -390,12 +378,13 @@
       pipAnimFrame = requestAnimationFrame(renderPipCanvas);
     }
 
+    // TẮT / BẬT CAMERA HIỂN THỊ MÀN HÌNH CHÍNH
     async function toggleCamera() {
       const aiBtn = document.getElementById('aiToggleBtn');
       if (isCameraOn) {
         stopCameraTracks();
         aiVideo.style.display = 'none';
-        aiScannerOverlay.style.display = 'none';
+        viewportContainer.classList.remove('camera-on');
         isCameraOn = false;
         aiBtn.innerText = '📷 BẬT CAMERA';
         aiBtn.style.backgroundColor = '#10b981';
@@ -407,7 +396,7 @@
           aiVideo.srcObject = cameraStream;
           await aiVideo.play();
           aiVideo.style.display = 'block';
-          aiScannerOverlay.style.display = 'flex';
+          viewportContainer.classList.add('camera-on');
           isCameraOn = true;
           aiBtn.innerText = '📷 TẮT CAMERA';
           aiBtn.style.backgroundColor = '#e11d48';
@@ -433,14 +422,12 @@
       const vehicleIcon = L.divIcon({ className: 'custom-marker', html: markerHtml, iconSize: [22, 22] });
       vehicleMarker = L.marker([lat, lon], { icon: vehicleIcon }).addTo(leafletMap);
 
-      // FIX BUG BẢN ĐỒ BỊ XÁM: invalidateSize nhiều lần sau khi layout render
       setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 200);
       setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 600);
     }
 
     document.getElementById('aiToggleBtn').onclick = toggleCamera;
 
-    // FIX BUG PIP TRÊN IOS & CHỈNH NÚT
     document.getElementById('pipBtn').onclick = async function() {
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
       if (isIOS) {
@@ -487,7 +474,7 @@
     };
 
     document.getElementById('stopBtn').onclick = function() {
-      stopCameraTracks(); // Tắt hẳn camera khi dừng hẳn
+      stopCameraTracks();
       const durationMs = Date.now() - tripStartTime;
       const durationMinutes = Math.max(1, Math.round(durationMs / 60000));
       const durationHours = durationMs / 3600000;
