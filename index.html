@@ -3,10 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>SpeedAlert Pro - Camera & Map Overlay Fixed</title>
+  <title>SpeedAlert Pro - Fixed PiP, Voice & TTS</title>
 
   <meta name="theme-color" content="#020617">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SpeedAlert">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2555/2555013.png">
 
   <!-- Leaflet.js CSS & JS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -34,7 +38,6 @@
       border-color: #ef4444 !important;
     }
 
-    .dashboard-container.hud-mode { transform: scaleX(-1); }
 
     /* Top Bar */
     .top-bar {
@@ -65,7 +68,7 @@
     .gps-dot { width: 7px; height: 7px; border-radius: 50%; background: #10b981; display: inline-block; }
     .gps-dot.poor { background: #ef4444; }
 
-    /* Viewport Container & Camera Display Fix */
+    /* Viewport Container */
     .viewport-container {
       position: relative; width: 100%; flex: 1; min-height: 180px;
       border-radius: 12px; overflow: hidden; border: 1px solid #1e293b; background: #000000;
@@ -81,7 +84,6 @@
       z-index: 2; transition: opacity 0.3s ease; background: transparent !important;
     }
 
-    /* Đổi độ trong suốt của bản đồ khi camera bật để hiển thị nổi đường đi trên nền camera */
     .viewport-container.camera-on #mapContainer .leaflet-tile-container {
       opacity: 0.55;
     }
@@ -89,16 +91,17 @@
     /* Settings Panel */
     .settings-panel-compact {
       width: 100%; background-color: rgba(15, 23, 42, 0.9); border: 1px solid #1e293b;
-      border-radius: 10px; padding: 5px 8px; display: flex; justify-content: space-between;
+      border-radius: 10px; padding: 6px 8px; display: flex; flex-wrap: wrap; justify-content: space-between;
       align-items: center; gap: 6px; flex-shrink: 0; z-index: 20;
     }
-    .compact-select-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #94a3b8; font-weight: 600; width: 38%; }
+    .compact-select-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #94a3b8; font-weight: 600; width: 48%; }
     .compact-select-item select {
       background-color: #020617; color: #38bdf8; border: 1px solid #334155;
       border-radius: 6px; padding: 4px; font-size: 11px; font-weight: 700; outline: none; width: 100%;
     }
     .btn-sound-toggle, .btn-theme-toggle {
       border: none; border-radius: 6px; padding: 6px 10px; font-size: 10px; font-weight: 800; cursor: pointer;
+      flex: 1 1 48%;
     }
     .btn-sound-toggle { background-color: #10b981; color: #ffffff; }
     .btn-theme-toggle { background-color: #0284c7; color: #ffffff; }
@@ -123,9 +126,10 @@
     
     .btn-ai-cam { background-color: #10b981; color: #ffffff; }
     .btn-voice { background-color: #d97706; color: #ffffff; }
-    .btn-pip { background-color: #0284c7; color: #ffffff; }
-    .btn-hud { background-color: #7c3aed; color: #ffffff; }
+    .btn-directions { background-color: #059669; color: #ffffff; }
     .btn-stop { background-color: #ef4444; color: #ffffff; }
+
+    .speed-limit-sign { cursor: pointer; }
 
     /* Summary Modal */
     .summary-modal {
@@ -141,6 +145,33 @@
     .summary-label { font-size: 10px; color: #94a3b8; font-weight: 600; margin-bottom: 2px; }
     .summary-val { font-size: 14px; color: #38bdf8; font-weight: 800; }
     .btn-close-modal { width: 100%; background: #0284c7; color: #fff; border: none; padding: 10px; border-radius: 8px; font-weight: 800; cursor: pointer; font-size: 12px; }
+
+    /* Law & Directions Modal extras */
+    .summary-card { max-height: 90vh; overflow-y: auto; }
+    .modal-field { margin-bottom: 10px; }
+    .modal-field label { display: block; font-size: 10px; font-weight: 700; color: #94a3b8; margin-bottom: 4px; text-transform: uppercase; }
+    .modal-field select, .modal-field input {
+      width: 100%; background-color: #020617; color: #f8fafc; border: 1px solid #334155;
+      border-radius: 8px; padding: 9px 8px; font-size: 13px; font-weight: 600; outline: none;
+    }
+    .law-result-box {
+      background: #0f172a; border: 1px solid #10b981; border-radius: 10px; padding: 12px;
+      text-align: center; margin: 12px 0; 
+    }
+    .law-result-box .law-result-val { font-size: 24px; font-weight: 900; color: #10b981; }
+    .law-result-box .law-result-note { font-size: 9px; color: #64748b; margin-top: 4px; }
+    .modal-divider { border: none; border-top: 1px solid #1e293b; margin: 14px 0; }
+    .btn-modal-action {
+      width: 100%; background: #10b981; color: #fff; border: none; padding: 10px;
+      border-radius: 8px; font-weight: 800; cursor: pointer; font-size: 12px; margin-bottom: 8px;
+    }
+    .btn-modal-secondary { background: #334155; }
+    .route-info { display: flex; gap: 8px; margin: 10px 0; }
+    .route-info .summary-item { flex: 1; padding: 8px; }
+    .route-steps { max-height: 160px; overflow-y: auto; background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 8px; margin-bottom: 10px; }
+    .route-step { font-size: 11px; color: #cbd5e1; padding: 6px 4px; border-bottom: 1px solid #1e293b; }
+    .route-step:last-child { border-bottom: none; }
+    .modal-error { font-size: 11px; color: #fca5a5; text-align: center; margin: 8px 0; min-height: 14px; }
   </style>
 </head>
 <body>
@@ -148,7 +179,7 @@
   <div class="dashboard-container" id="dashContainer">
     <div class="top-bar">
       <div class="top-left-group">
-        <div class="speed-limit-sign">
+        <div class="speed-limit-sign" id="speedLimitSign" onclick="openLawModal()">
           <span class="sign-title">GIỚI HẠN</span>
           <span id="speedLimitValue">60</span>
         </div>
@@ -166,20 +197,11 @@
     </div>
 
     <div id="viewportContainer" class="viewport-container">
-      <!-- Camera hiển thị trung thực bên dưới bản đồ -->
       <video id="aiVideo" playsinline autoplay muted></video>
       <div id="mapContainer"></div>
     </div>
 
     <div class="settings-panel-compact">
-      <div class="compact-select-item">
-        <span>🚗</span>
-        <select id="vehicleSelect">
-          <option value="motorbike" selected>Xe máy</option>
-          <option value="car">Ô tô</option>
-        </select>
-      </div>
-
       <button id="themeToggleBtn" class="btn-theme-toggle" type="button">🌙 NỀN TỐI</button>
       <button id="soundToggleBtn" class="btn-sound-toggle" type="button">🔊 BẬT</button>
     </div>
@@ -187,10 +209,9 @@
     <div id="statusText" class="status-box" onclick="requestGPSPermission()">📡 CHẠM ĐỂ KÍCH HOẠT GPS / BẮT ĐẦU</div>
 
     <div class="controls">
-      <button id="aiToggleBtn" class="btn btn-ai-cam" type="button">📷 BẬT CAMERA</button>
-      <button id="chatVoiceBtn" class="btn btn-voice" type="button">🎙️ LỆNH GIỌNG NÓI</button>
-      <button id="pipBtn" class="btn btn-pip" type="button">📌 POPUP NỔI (PIP)</button>
-      <button id="hudBtn" class="btn btn-hud" type="button">🕶️ KÍNH HUD</button>
+      <button id="aiToggleBtn" class="btn btn-ai-cam btn-full" type="button">📷 BẬT CAMERA</button>
+      <button id="chatVoiceBtn" class="btn btn-voice btn-full" type="button">🎙️ LỆNH GIỌNG NÓI</button>
+      <button id="directionsBtn" class="btn btn-directions btn-full" type="button">🧭 CHỈ ĐƯỜNG (A → B)</button>
       <button id="stopBtn" class="btn btn-stop btn-full" type="button">🛑 DỪNG & TỔNG KẾT</button>
     </div>
 
@@ -207,9 +228,89 @@
         <button class="btn-close-modal" id="closeModalBtn">ĐÓNG & TIẾP TỤC</button>
       </div>
     </div>
+
+    <!-- MODAL GIỚI HẠN TỐC ĐỘ THEO LUẬT -->
+    <div id="lawModal" class="summary-modal">
+      <div class="summary-card">
+        <div class="summary-title" style="color:#10b981;">⚖️ TỐC ĐỘ THEO LUẬT VN</div>
+
+        <div class="modal-field">
+          <label>Loại xe</label>
+          <select id="lawVehicleType">
+            <option value="motorbike">Xe máy / Mô tô</option>
+            <option value="moped">Xe gắn máy (dưới 50cc)</option>
+            <option value="car">Ô tô con / xe ≤ 30 chỗ / tải ≤ 3.5 tấn</option>
+          </select>
+        </div>
+
+        <div class="modal-field">
+          <label>Khu vực</label>
+          <select id="lawZone">
+            <option value="city">Khu vực đông dân cư</option>
+            <option value="outside">Ngoài khu vực đông dân cư</option>
+            <option value="highway">Đường cao tốc</option>
+          </select>
+        </div>
+
+        <div class="modal-field" id="lawRoadTypeField">
+          <label>Loại đường</label>
+          <select id="lawRoadType">
+            <option value="multi">Đường đôi / một chiều ≥ 2 làn xe cơ giới</option>
+            <option value="single">Đường hai chiều / một chiều 1 làn xe cơ giới</option>
+          </select>
+        </div>
+
+        <div class="law-result-box">
+          <div class="law-result-val" id="lawResultVal">60 km/h</div>
+          <div class="law-result-note" id="lawResultNote">Theo Điều 6, Thông tư 38/2024/TT-BGTVT</div>
+        </div>
+
+        <button class="btn-modal-action" id="lawApplyBtn" type="button">✅ ÁP DỤNG MỨC NÀY</button>
+
+        <hr class="modal-divider">
+
+        <div class="modal-field">
+          <label>Hoặc tự đặt theo biển báo thực tế (km/h)</label>
+          <input type="number" id="lawManualInput" min="5" max="150" step="5" placeholder="VD: 40">
+        </div>
+        <button class="btn-modal-action btn-modal-secondary" id="lawManualApplyBtn" type="button">Đặt thủ công</button>
+
+        <button class="btn-close-modal" id="closeLawModalBtn">ĐÓNG</button>
+      </div>
+    </div>
+
+    <!-- MODAL CHỈ ĐƯỜNG A -> B -->
+    <div id="directionsModal" class="summary-modal">
+      <div class="summary-card">
+        <div class="summary-title" style="color:#059669;">🧭 CHỈ ĐƯỜNG</div>
+
+        <div class="modal-field">
+          <label>Điểm đi (để trống = vị trí hiện tại)</label>
+          <input type="text" id="routeStartInput" placeholder="VD: 20 Lê Duẩn, Hà Nội">
+        </div>
+        <div class="modal-field">
+          <label>Điểm đến</label>
+          <input type="text" id="routeEndInput" placeholder="VD: Sân bay Nội Bài">
+        </div>
+
+        <div class="modal-error" id="routeError"></div>
+
+        <button class="btn-modal-action" id="findRouteBtn" type="button">🔍 TÌM ĐƯỜNG</button>
+
+        <div id="routeResultBox" style="display:none;">
+          <div class="route-info">
+            <div class="summary-item"><div class="summary-label">QUÃNG ĐƯỜNG</div><div class="summary-val" id="routeDistance">-</div></div>
+            <div class="summary-item"><div class="summary-label">THỜI GIAN</div><div class="summary-val" id="routeDuration">-</div></div>
+          </div>
+          <div class="route-steps" id="routeStepsBox"></div>
+          <button class="btn-modal-action btn-modal-secondary" id="clearRouteBtn" type="button">🗑️ XOÁ TUYẾN ĐƯỜNG</button>
+        </div>
+
+        <button class="btn-close-modal" id="closeDirectionsModalBtn">ĐÓNG</button>
+      </div>
+    </div>
   </div>
 
-  <canvas id="pipCanvas" width="640" height="360" style="display:none;"></canvas>
 
   <script>
     let currentSpeed = 0, speedLimit = 60, maxSpeed = 0;
@@ -218,21 +319,21 @@
     let currentLat = 18.6732, currentLon = 105.6813; 
     let totalDistanceKm = 0;
     let tripStartTime = Date.now();
+    let lastSpeechTime = 0; // Quản lý tần suất đọc cảnh báo âm thanh
 
     let leafletMap = null, currentTileLayer = null, vehicleMarker = null;
-    let isDarkMode = true, isCameraOn = false, isSoundOn = true, isHudOn = false;
-    let cameraStream = null, gpsWatchId = null, pipAnimFrame = null;
+    let isDarkMode = true, isCameraOn = false, isSoundOn = true;
+    let cameraStream = null, gpsWatchId = null;
+    let recognition = null;
 
     const dashContainer = document.getElementById('dashContainer');
     const viewportContainer = document.getElementById('viewportContainer');
     const speedValueText = document.getElementById('speedValueText');
     const statusTextEl = document.getElementById('statusText');
     const aiVideo = document.getElementById('aiVideo');
-    const pipCanvas = document.getElementById('pipCanvas');
     const gpsAccText = document.getElementById('gpsAccText');
     const gpsDot = document.getElementById('gpsDot');
 
-    // Tiles bản đồ tối giản CartoDB hiển thị tên đường và nét kẻ cực rõ
     const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
     const TILE_LIGHT = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 
@@ -331,12 +432,29 @@
       return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 
+    // ĐỌC CẢNH BÁO TỐC ĐỘ BẰNG GIỌNG NÓI & PHÁT ÂM THANH
+    function speakOverspeedWarning() {
+      if (!isSoundOn) return;
+      const now = Date.now();
+      if (now - lastSpeechTime < 6000) return; // Đọc nhắc lại mỗi 6 giây để tránh lặp quá nhanh
+      lastSpeechTime = now;
+
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel(); // Dừng câu đang đọc cũ
+        const msg = new SpeechSynthesisUtterance(`Cảnh báo! Bạn đang đi ${currentSpeed} km/h, vượt quá tốc độ cho phép ${speedLimit}!`);
+        msg.lang = 'vi-VN';
+        msg.rate = 1.1;
+        window.speechSynthesis.speak(msg);
+      }
+    }
+
     function checkOverspeedLogic() {
       if (currentSpeed > speedLimit) {
         dashContainer.classList.add('overspeed-active');
         speedValueText.classList.add('text-danger');
         statusTextEl.classList.add('status-alert');
         statusTextEl.innerText = `🚨 CẢNH BÁO: QUÁ TỐC ĐỘ (${currentSpeed}/${speedLimit} KM/H)!`;
+        speakOverspeedWarning();
       } else {
         dashContainer.classList.remove('overspeed-active');
         speedValueText.classList.remove('text-danger');
@@ -345,40 +463,6 @@
       }
     }
 
-    // PIP CANVAS: CHỈ HIỂN THỊ THÔNG SỐ, KHÔNG HIỂN THỊ CAMERA
-    function renderPipCanvas() {
-      const ctx = pipCanvas.getContext('2d');
-      ctx.fillStyle = '#020617';
-      ctx.fillRect(0, 0, 640, 360);
-
-      const isOverspeed = currentSpeed > speedLimit;
-
-      ctx.fillStyle = isOverspeed ? 'rgba(127, 29, 29, 0.95)' : 'rgba(15, 23, 42, 0.95)';
-      ctx.fillRect(20, 20, 600, 160);
-      ctx.strokeStyle = isOverspeed ? '#ef4444' : '#0284c7';
-      ctx.lineWidth = 4;
-      ctx.strokeRect(20, 20, 600, 160);
-
-      ctx.fillStyle = isOverspeed ? '#ef4444' : '#38bdf8';
-      ctx.font = '900 68px -apple-system, Roboto, sans-serif';
-      ctx.fillText(`${currentSpeed} km/h`, 40, 95);
-
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 32px -apple-system, Roboto, sans-serif';
-      ctx.fillText(`GIỚI HẠN: ${speedLimit} km/h`, 40, 150);
-
-      if (isOverspeed) {
-        ctx.fillStyle = '#ef4444';
-        ctx.fillRect(20, 205, 600, 110);
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '900 30px -apple-system, Roboto, sans-serif';
-        ctx.fillText(`🚨 VƯỢT QUÁ TỐC ĐỘ!`, 60, 275);
-      }
-
-      pipAnimFrame = requestAnimationFrame(renderPipCanvas);
-    }
-
-    // TẮT / BẬT CAMERA HIỂN THỊ MÀN HÌNH CHÍNH
     async function toggleCamera() {
       const aiBtn = document.getElementById('aiToggleBtn');
       if (isCameraOn) {
@@ -426,36 +510,142 @@
       setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 600);
     }
 
-    document.getElementById('aiToggleBtn').onclick = toggleCamera;
-
-    document.getElementById('pipBtn').onclick = async function() {
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-      if (isIOS) {
-        alert("Tính năng PiP Popup Canvas hiện chưa được iOS Safari hỗ trợ.");
+    // KHỞI TẠO & XỬ LÝ LỆNH GIỌNG NÓI (VOICE COMMANDS)
+    function initVoiceRecognition() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        alert("Trình duyệt không hỗ trợ Nhận diện Giọng nói. Hãy sử dụng Google Chrome trên Android.");
         return;
       }
 
-      try {
-        if (document.pictureInPictureElement) {
-          await document.exitPictureInPicture();
-        } else {
-          const stream = pipCanvas.captureStream(25);
-          const tempVideo = document.createElement('video');
-          tempVideo.srcObject = stream;
-          tempVideo.muted = true;
-          await tempVideo.play();
-          await tempVideo.requestPictureInPicture();
+      recognition = new SpeechRecognition();
+      recognition.lang = 'vi-VN';
+      recognition.continuous = false;
+      recognition.interimResults = false;
+
+      const voiceBtn = document.getElementById('chatVoiceBtn');
+
+      recognition.onstart = function() {
+        voiceBtn.innerText = '🔴 ĐANG NGHE...';
+        voiceBtn.style.backgroundColor = '#ef4444';
+        statusTextEl.innerText = '🎙️ Đang lắng nghe lệnh giọng nói của bạn...';
+      };
+
+      recognition.onend = function() {
+        voiceBtn.innerText = '🎙️ LỆNH GIỌNG NÓI';
+        voiceBtn.style.backgroundColor = '#d97706';
+      };
+
+      recognition.onresult = function(event) {
+        const command = event.results[0][0].transcript.toLowerCase();
+        statusTextEl.innerText = `🗣️ Lệnh đã nghe: "${command}"`;
+
+        if (command.includes('tắt âm') || command.includes('im lặng')) {
+          isSoundOn = false;
+          document.getElementById('soundToggleBtn').innerText = '🔇 TẮT';
+          document.getElementById('soundToggleBtn').style.backgroundColor = '#64748b';
+        } else if (command.includes('bật âm')) {
+          isSoundOn = true;
+          document.getElementById('soundToggleBtn').innerText = '🔊 BẬT';
+          document.getElementById('soundToggleBtn').style.backgroundColor = '#10b981';
+        } else if (command.includes('bật camera') && !isCameraOn) {
+          toggleCamera();
+        } else if (command.includes('tắt camera') && isCameraOn) {
+          toggleCamera();
+        } else if (command.includes('nền tối') || command.includes('chế độ tối')) {
+          if (!isDarkMode) document.getElementById('themeToggleBtn').click();
+        } else if (command.includes('nền sáng') || command.includes('chế độ sáng')) {
+          if (isDarkMode) document.getElementById('themeToggleBtn').click();
         }
-      } catch (err) {
-        alert('Trình duyệt không hỗ trợ chế độ PiP.');
+      };
+
+      recognition.onerror = function(e) {
+        statusTextEl.innerText = '⚠️ Lỗi nhận diện giọng nói. Thử lại!';
+        voiceBtn.innerText = '🎙️ LỆNH GIỌNG NÓI';
+        voiceBtn.style.backgroundColor = '#d97706';
+      };
+    }
+
+    document.getElementById('chatVoiceBtn').onclick = function() {
+      if (!recognition) initVoiceRecognition();
+      if (recognition) {
+        try { recognition.start(); } catch(e) { recognition.stop(); }
       }
     };
 
-    document.getElementById('hudBtn').onclick = function() {
-      isHudOn = !isHudOn;
-      dashContainer.classList.toggle('hud-mode', isHudOn);
-      this.style.backgroundColor = isHudOn ? '#ec4899' : '#7c3aed';
+    document.getElementById('aiToggleBtn').onclick = toggleCamera;
+
+    // ===== TỐC ĐỘ TỐI ĐA THEO LUẬT VIỆT NAM (Thông tư 38/2024/TT-BGTVT, hiệu lực 01/01/2025) =====
+    const VN_SPEED_LIMITS = {
+      motorbike: { city: { multi: 60, single: 50 }, outside: { multi: 70, single: 60 } },
+      moped:     { flat: 40 },
+      car:       { city: { multi: 60, single: 50 }, outside: { multi: 90, single: 80 } },
+      highway: 120
     };
+    const LAW_SOURCE_NOTE = {
+      highway: 'Trần tối đa trên cao tốc — Điều 9, TT 38/2024/TT-BGTVT. Luôn ưu tiên biển báo thực tế trên tuyến.',
+      moped: 'Xe gắn máy (<50cc): áp dụng một mức chung — Điều 8, TT 38/2024/TT-BGTVT.',
+      normal: 'Theo Điều 6, Thông tư 38/2024/TT-BGTVT (hiệu lực từ 01/01/2025).'
+    };
+
+    function computeLegalSpeedLimit(vehicleType, zone, roadType) {
+      if (zone === 'highway') return { value: VN_SPEED_LIMITS.highway, note: LAW_SOURCE_NOTE.highway };
+      if (vehicleType === 'moped') return { value: VN_SPEED_LIMITS.moped.flat, note: LAW_SOURCE_NOTE.moped };
+      const table = VN_SPEED_LIMITS[vehicleType][zone];
+      const value = roadType === 'multi' ? table.multi : table.single;
+      return { value, note: LAW_SOURCE_NOTE.normal };
+    }
+
+    const speedLimitValueEl = document.getElementById('speedLimitValue');
+    const lawModal = document.getElementById('lawModal');
+    const lawVehicleTypeEl = document.getElementById('lawVehicleType');
+    const lawZoneEl = document.getElementById('lawZone');
+    const lawRoadTypeEl = document.getElementById('lawRoadType');
+    const lawRoadTypeField = document.getElementById('lawRoadTypeField');
+    const lawResultValEl = document.getElementById('lawResultVal');
+    const lawResultNoteEl = document.getElementById('lawResultNote');
+    const lawManualInput = document.getElementById('lawManualInput');
+
+    function applySpeedLimit(value) {
+      speedLimit = parseInt(value, 10);
+      speedLimitValueEl.innerText = speedLimit;
+      checkOverspeedLogic();
+    }
+
+    function refreshLawPreview() {
+      const isMoped = lawVehicleTypeEl.value === 'moped';
+      const isHighway = lawZoneEl.value === 'highway';
+      lawRoadTypeField.style.display = (isMoped || isHighway) ? 'none' : 'block';
+
+      const result = computeLegalSpeedLimit(lawVehicleTypeEl.value, lawZoneEl.value, lawRoadTypeEl.value);
+      lawResultValEl.innerText = `${result.value} km/h`;
+      lawResultNoteEl.innerText = result.note;
+    }
+
+    function openLawModal() {
+      refreshLawPreview();
+      lawModal.classList.add('active');
+    }
+
+    [lawVehicleTypeEl, lawZoneEl, lawRoadTypeEl].forEach((el) => el.addEventListener('change', refreshLawPreview));
+
+    document.getElementById('lawApplyBtn').onclick = function() {
+      const result = computeLegalSpeedLimit(lawVehicleTypeEl.value, lawZoneEl.value, lawRoadTypeEl.value);
+      applySpeedLimit(result.value);
+      lawModal.classList.remove('active');
+    };
+
+    document.getElementById('lawManualApplyBtn').onclick = function() {
+      const v = parseInt(lawManualInput.value, 10);
+      if (!v || v < 5 || v > 150) {
+        lawManualInput.focus();
+        return;
+      }
+      applySpeedLimit(v);
+      lawModal.classList.remove('active');
+    };
+
+    document.getElementById('closeLawModalBtn').onclick = () => lawModal.classList.remove('active');
 
     document.getElementById('themeToggleBtn').onclick = function() {
       isDarkMode = !isDarkMode;
@@ -494,11 +684,138 @@
       document.getElementById('summaryModal').classList.remove('active');
     };
 
+    // ===== CHỈ ĐƯỜNG A -> B (Nominatim geocoding + OSRM routing) =====
+    let routeLayer = null, routeStartMarker = null, routeEndMarker = null;
+    const directionsModal = document.getElementById('directionsModal');
+    const routeErrorEl = document.getElementById('routeError');
+    const routeResultBox = document.getElementById('routeResultBox');
+    const routeStepsBox = document.getElementById('routeStepsBox');
+
+    const MANEUVER_VI = {
+      depart: 'Xuất phát', arrive: 'Đến nơi', turn: 'Rẽ', 'new name': 'Tiếp tục theo',
+      continue: 'Đi thẳng theo', merge: 'Nhập làn', 'on ramp': 'Vào nhánh đường',
+      'off ramp': 'Ra khỏi nhánh đường', fork: 'Đi theo nhánh', 'end of road': 'Cuối đường, rẽ',
+      roundabout: 'Vào vòng xuyến', rotary: 'Vào vòng xuyến', 'roundabout turn': 'Tại vòng xuyến, rẽ'
+    };
+    const MODIFIER_VI = {
+      left: 'trái', right: 'phải', 'sharp left': 'trái (gấp)', 'sharp right': 'phải (gấp)',
+      'slight left': 'trái (nhẹ)', 'slight right': 'phải (nhẹ)', straight: 'đi thẳng', uturn: 'quay đầu'
+    };
+
+    function describeStep(step) {
+      const m = step.maneuver || {};
+      const base = MANEUVER_VI[m.type] || 'Tiếp tục';
+      const mod = m.modifier ? (MODIFIER_VI[m.modifier] || m.modifier) : '';
+      const roadName = step.name ? ` vào ${step.name}` : '';
+      const distText = step.distance >= 1000 ? `${(step.distance / 1000).toFixed(1)} km` : `${Math.round(step.distance)} m`;
+      if (m.type === 'depart') return `📍 ${base}${roadName}`;
+      if (m.type === 'arrive') return `🏁 ${base}${roadName}`;
+      return `${base}${mod ? ' ' + mod : ''}${roadName} — ${distText}`;
+    }
+
+    async function geocodeAddress(query) {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=vn&q=${encodeURIComponent(query)}`;
+      const res = await fetch(url, { headers: { 'Accept-Language': 'vi' } });
+      if (!res.ok) throw new Error('geocode_failed');
+      const data = await res.json();
+      if (!data.length) throw new Error('not_found');
+      return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon), label: data[0].display_name };
+    }
+
+    function clearRoute() {
+      if (routeLayer) { leafletMap.removeLayer(routeLayer); routeLayer = null; }
+      if (routeStartMarker) { leafletMap.removeLayer(routeStartMarker); routeStartMarker = null; }
+      if (routeEndMarker) { leafletMap.removeLayer(routeEndMarker); routeEndMarker = null; }
+      routeResultBox.style.display = 'none';
+      routeStepsBox.innerHTML = '';
+    }
+
+    async function findRoute() {
+      routeErrorEl.innerText = '';
+      const startText = document.getElementById('routeStartInput').value.trim();
+      const endText = document.getElementById('routeEndInput').value.trim();
+      const findBtn = document.getElementById('findRouteBtn');
+
+      if (!endText) {
+        routeErrorEl.innerText = '⚠️ Hãy nhập điểm đến.';
+        return;
+      }
+
+      findBtn.innerText = '⏳ ĐANG TÌM...';
+      findBtn.disabled = true;
+
+      try {
+        let start;
+        if (startText) {
+          start = await geocodeAddress(startText);
+        } else if (lastLat !== null) {
+          start = { lat: currentLat, lon: currentLon, label: 'Vị trí hiện tại' };
+        } else {
+          throw new Error('no_gps');
+        }
+
+        const end = await geocodeAddress(endText);
+
+        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${start.lon},${start.lat};${end.lon},${end.lat}?overview=full&geometries=geojson&steps=true`;
+        const res = await fetch(osrmUrl);
+        if (!res.ok) throw new Error('route_failed');
+        const data = await res.json();
+        if (data.code !== 'Ok' || !data.routes.length) throw new Error('no_route');
+
+        const route = data.routes[0];
+        clearRoute();
+
+        const latlngs = route.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
+        routeLayer = L.polyline(latlngs, { color: '#059669', weight: 5, opacity: 0.9 }).addTo(leafletMap);
+
+        const startIcon = L.divIcon({ className: 'custom-marker', html: `<div style="background:#10b981;width:18px;height:18px;border-radius:50%;border:3px solid #fff;"></div>`, iconSize: [18, 18] });
+        const endIcon = L.divIcon({ className: 'custom-marker', html: `<div style="background:#ef4444;width:18px;height:18px;border-radius:50%;border:3px solid #fff;"></div>`, iconSize: [18, 18] });
+        routeStartMarker = L.marker([start.lat, start.lon], { icon: startIcon }).addTo(leafletMap);
+        routeEndMarker = L.marker([end.lat, end.lon], { icon: endIcon }).addTo(leafletMap);
+
+        leafletMap.fitBounds(routeLayer.getBounds(), { padding: [30, 30] });
+
+        document.getElementById('routeDistance').innerText = `${(route.distance / 1000).toFixed(1)} km`;
+        const mins = Math.round(route.duration / 60);
+        document.getElementById('routeDuration').innerText = mins >= 60 ? `${(mins / 60).toFixed(1)} giờ` : `${mins} phút`;
+
+        routeStepsBox.innerHTML = '';
+        (route.legs[0].steps || []).forEach((step) => {
+          const div = document.createElement('div');
+          div.className = 'route-step';
+          div.innerText = describeStep(step);
+          routeStepsBox.appendChild(div);
+        });
+
+        routeResultBox.style.display = 'block';
+      } catch (err) {
+        if (err.message === 'no_gps') routeErrorEl.innerText = '⚠️ Chưa có vị trí GPS. Hãy bật GPS hoặc nhập điểm đi thủ công.';
+        else if (err.message === 'not_found') routeErrorEl.innerText = '⚠️ Không tìm thấy địa điểm. Hãy thử ghi rõ hơn (VD: kèm quận/huyện, tỉnh/thành).';
+        else routeErrorEl.innerText = '⚠️ Không thể tìm đường lúc này. Kiểm tra kết nối mạng và thử lại.';
+      } finally {
+        findBtn.innerText = '🔍 TÌM ĐƯỜNG';
+        findBtn.disabled = false;
+      }
+    }
+
+    document.getElementById('directionsBtn').onclick = () => {
+      routeErrorEl.innerText = '';
+      directionsModal.classList.add('active');
+    };
+    document.getElementById('findRouteBtn').onclick = findRoute;
+    document.getElementById('clearRouteBtn').onclick = clearRoute;
+    document.getElementById('closeDirectionsModalBtn').onclick = () => directionsModal.classList.remove('active');
+
     window.onload = function() {
       tripStartTime = Date.now();
       initMap(currentLat, currentLon);
-      renderPipCanvas();
       requestGPSPermission();
+
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js').catch((err) => {
+          console.warn('Không thể đăng ký Service Worker:', err);
+        });
+      }
     };
   </script>
 </body>
