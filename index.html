@@ -114,16 +114,17 @@
     }
     .status-box.status-alert { background-color: #7f1d1d; color: #fca5a5; border-color: #ef4444; }
 
-    /* Control Buttons Grid */
-    .controls { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; flex-shrink: 0; z-index: 20; }
+    /* Control Buttons Grid - 4 nút dồn thành 1 hàng ngang */
+    .controls { width: 100%; display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; flex-shrink: 0; z-index: 20; }
     .btn {
-      width: 100%; padding: 12px 6px; border: none; border-radius: 8px; font-size: 11px;
-      font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center;
-      gap: 5px; text-transform: uppercase; user-select: none;
+      width: 100%; padding: 8px 2px; border: none; border-radius: 8px;
+      font-weight: 800; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 2px; text-transform: uppercase; user-select: none; line-height: 1.1;
     }
     .btn:active { transform: scale(0.97); opacity: 0.9; }
-    .btn-full { grid-column: span 2; padding: 12px; font-size: 12px; }
-    
+    .btn-icon { font-size: 16px; line-height: 1; }
+    .btn-label { font-size: 8px; font-weight: 800; letter-spacing: 0.2px; line-height: 1.15; text-align: center; }
+
     .btn-ai-cam { background-color: #10b981; color: #ffffff; }
     .btn-voice { background-color: #d97706; color: #ffffff; }
     .btn-directions { background-color: #059669; color: #ffffff; }
@@ -209,10 +210,10 @@
     <div id="statusText" class="status-box" onclick="requestGPSPermission()">📡 CHẠM ĐỂ KÍCH HOẠT GPS / BẮT ĐẦU</div>
 
     <div class="controls">
-      <button id="aiToggleBtn" class="btn btn-ai-cam btn-full" type="button">📷 BẬT CAMERA</button>
-      <button id="chatVoiceBtn" class="btn btn-voice btn-full" type="button">🎙️ LỆNH GIỌNG NÓI</button>
-      <button id="directionsBtn" class="btn btn-directions btn-full" type="button">🧭 CHỈ ĐƯỜNG (A → B)</button>
-      <button id="stopBtn" class="btn btn-stop btn-full" type="button">🛑 DỪNG & TỔNG KẾT</button>
+      <button id="aiToggleBtn" class="btn btn-ai-cam" type="button"><span class="btn-icon">📷</span><span class="btn-label">CAMERA</span></button>
+      <button id="chatVoiceBtn" class="btn btn-voice" type="button"><span class="btn-icon">🎙️</span><span class="btn-label">GIỌNG NÓI</span></button>
+      <button id="directionsBtn" class="btn btn-directions" type="button"><span class="btn-icon">🧭</span><span class="btn-label">CHỈ ĐƯỜNG</span></button>
+      <button id="stopBtn" class="btn btn-stop" type="button"><span class="btn-icon">🛑</span><span class="btn-label">DỪNG</span></button>
     </div>
 
     <!-- MODAL TỔNG KẾT -->
@@ -465,12 +466,13 @@
 
     async function toggleCamera() {
       const aiBtn = document.getElementById('aiToggleBtn');
+      const aiBtnLabel = aiBtn.querySelector('.btn-label');
       if (isCameraOn) {
         stopCameraTracks();
         aiVideo.style.display = 'none';
         viewportContainer.classList.remove('camera-on');
         isCameraOn = false;
-        aiBtn.innerText = '📷 BẬT CAMERA';
+        aiBtnLabel.innerText = 'CAMERA';
         aiBtn.style.backgroundColor = '#10b981';
       } else {
         try {
@@ -482,7 +484,7 @@
           aiVideo.style.display = 'block';
           viewportContainer.classList.add('camera-on');
           isCameraOn = true;
-          aiBtn.innerText = '📷 TẮT CAMERA';
+          aiBtnLabel.innerText = 'TẮT CAM';
           aiBtn.style.backgroundColor = '#e11d48';
         } catch (e) {
           alert("Không thể mở Camera. Hãy cấp quyền truy cập máy ảnh.");
@@ -524,21 +526,29 @@
       recognition.interimResults = false;
 
       const voiceBtn = document.getElementById('chatVoiceBtn');
+      const voiceBtnLabel = voiceBtn.querySelector('.btn-label');
+      const voiceBtnIcon = voiceBtn.querySelector('.btn-icon');
 
       recognition.onstart = function() {
-        voiceBtn.innerText = '🔴 ĐANG NGHE...';
+        voiceBtnIcon.innerText = '🔴';
+        voiceBtnLabel.innerText = 'ĐANG NGHE...';
         voiceBtn.style.backgroundColor = '#ef4444';
         statusTextEl.innerText = '🎙️ Đang lắng nghe lệnh giọng nói của bạn...';
       };
 
       recognition.onend = function() {
-        voiceBtn.innerText = '🎙️ LỆNH GIỌNG NÓI';
+        voiceBtnIcon.innerText = '🎙️';
+        voiceBtnLabel.innerText = 'GIỌNG NÓI';
         voiceBtn.style.backgroundColor = '#d97706';
       };
 
       recognition.onresult = function(event) {
         const command = event.results[0][0].transcript.toLowerCase();
         statusTextEl.innerText = `🗣️ Lệnh đã nghe: "${command}"`;
+
+        // Lệnh chỉ đường bằng giọng nói: "chỉ đường đến ...", "dẫn đường tới ...", "tìm đường đi ..."
+        const directionKeywords = ['chỉ đường', 'dẫn đường', 'tìm đường', 'đường đi'];
+        const isDirectionCommand = directionKeywords.some(k => command.includes(k));
 
         if (command.includes('tắt âm') || command.includes('im lặng')) {
           isSoundOn = false;
@@ -556,14 +566,43 @@
           if (!isDarkMode) document.getElementById('themeToggleBtn').click();
         } else if (command.includes('nền sáng') || command.includes('chế độ sáng')) {
           if (isDarkMode) document.getElementById('themeToggleBtn').click();
+        } else if (isDirectionCommand) {
+          const destination = extractVoiceDestination(command);
+          const startInput = document.getElementById('routeStartInput');
+          const endInput = document.getElementById('routeEndInput');
+          if (destination) {
+            endInput.value = destination;
+            startInput.value = '';
+            statusTextEl.innerText = `🧭 Đang tìm đường đến "${destination}"...`;
+            directionsModal.classList.add('active');
+            findRoute();
+          } else {
+            statusTextEl.innerText = '⚠️ Chưa nghe rõ điểm đến. Hãy nói ví dụ: "chỉ đường đến sân bay Nội Bài".';
+            directionsModal.classList.add('active');
+          }
         }
       };
 
       recognition.onerror = function(e) {
         statusTextEl.innerText = '⚠️ Lỗi nhận diện giọng nói. Thử lại!';
-        voiceBtn.innerText = '🎙️ LỆNH GIỌNG NÓI';
+        voiceBtnIcon.innerText = '🎙️';
+        voiceBtnLabel.innerText = 'GIỌNG NÓI';
         voiceBtn.style.backgroundColor = '#d97706';
       };
+    }
+
+    // Tách điểm đến từ câu lệnh giọng nói, ví dụ:
+    // "chỉ đường đến sân bay nội bài" -> "sân bay nội bài"
+    function extractVoiceDestination(command) {
+      const patterns = [
+        /(?:chỉ đường|dẫn đường|tìm đường|đường đi)\s*(?:đi|đến|tới)\s+(.+)/,
+        /(?:chỉ đường|dẫn đường|tìm đường|đường đi)\s+(.+)/
+      ];
+      for (const p of patterns) {
+        const m = command.match(p);
+        if (m && m[1] && m[1].trim().length > 0) return m[1].trim();
+      }
+      return null;
     }
 
     document.getElementById('chatVoiceBtn').onclick = function() {
